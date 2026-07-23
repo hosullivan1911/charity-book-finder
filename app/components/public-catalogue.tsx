@@ -22,14 +22,28 @@ export function PublicCatalogue() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/inventory", { signal: controller.signal })
-      .then((response) => response.json())
-      .then((data: { inventory?: InventoryBook[] }) => {
-        if (data.inventory?.length) setInventory(data.inventory);
-      })
-      .catch(() => undefined)
-      .finally(() => setLoading(false));
-    return () => controller.abort();
+
+    async function refreshInventory() {
+      try {
+        const response = await fetch("/api/inventory", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = (await response.json()) as { inventory?: InventoryBook[] };
+        if (Array.isArray(data.inventory)) setInventory(data.inventory);
+      } catch {
+        // Keep the last successful inventory while temporarily offline.
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void refreshInventory();
+    const refreshTimer = window.setInterval(refreshInventory, 15_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(refreshTimer);
+    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -86,7 +100,7 @@ export function PublicCatalogue() {
         </div>
 
         <div className="hero-meta" aria-label="Platform summary">
-          <span><BookIcon /> {inventory.length || 6} books listed</span>
+          <span><BookIcon /> {inventory.length} books listed</span>
           <span><ShopIcon /> {masterShops.length} participating shops</span>
           <span>Updated by shop volunteers</span>
         </div>

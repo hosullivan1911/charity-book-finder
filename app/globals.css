@@ -698,6 +698,54 @@ footer p {
   min-height: 100vh;
 }
 
+.login-shell {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: calc(100vh - 76px);
+  padding: 40px 24px;
+}
+
+.login-card {
+  background: var(--paper);
+  border: 1px solid rgba(36, 91, 72, 0.1);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  max-width: 440px;
+  padding: 42px;
+  width: 100%;
+}
+
+.login-icon {
+  align-items: center;
+  background: var(--sage);
+  border-radius: 16px;
+  color: var(--green);
+  display: flex;
+  height: 52px;
+  justify-content: center;
+  margin-bottom: 22px;
+  width: 52px;
+}
+
+.login-card .kicker {
+  margin-bottom: 8px;
+}
+
+.login-card h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 38px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  margin: 0;
+}
+
+.login-intro {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 12px 0 28px;
+}
+
 .staff-shell {
   display: grid;
   gap: 44px;
@@ -828,6 +876,13 @@ footer p {
   margin-bottom: 7px;
 }
 
+.shop-session {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .shop-badge {
   align-items: center;
   background: var(--sage);
@@ -847,6 +902,20 @@ footer p {
 .shop-badge svg {
   height: 15px;
   width: 15px;
+}
+
+.sign-out-button {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 5px;
+}
+
+.sign-out-button:hover {
+  color: var(--terracotta);
 }
 
 .camera-button {
@@ -949,6 +1018,10 @@ footer p {
   display: grid;
   gap: 14px;
   grid-template-columns: 1fr 1fr;
+}
+
+.form-row .form-field:only-child {
+  grid-column: 1 / -1;
 }
 
 .form-error,
