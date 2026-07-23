@@ -44,7 +44,10 @@ export async function GET(request: Request) {
 
   try {
     const db = await getDb();
-    const filters = [eq(inventory.status, "available")];
+    const filters = [
+      eq(inventory.status, "available"),
+      eq(shops.active, true),
+    ];
     if (query) {
       const match = `%${query}%`;
       filters.push(

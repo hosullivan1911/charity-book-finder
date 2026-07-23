@@ -1,0 +1,41 @@
+import { notInArray } from "drizzle-orm";
+import { masterShops } from "../config/shops";
+import type { Database } from ".";
+import { shops } from "./schema";
+
+export async function syncMasterShops(db: Database) {
+  const configuredSlugs = masterShops.map((shop) => shop.slug);
+
+  await db
+    .update(shops)
+    .set({ active: false })
+    .where(notInArray(shops.slug, configuredSlugs));
+
+  const syncedShops = [];
+  for (const masterShop of masterShops) {
+    const [shop] = await db
+      .insert(shops)
+      .values({
+        slug: masterShop.slug,
+        name: masterShop.name,
+        address: masterShop.address,
+        postcode: masterShop.postcode,
+        openingHours: masterShop.openingHours,
+        active: true,
+      })
+      .onConflictDoUpdate({
+        target: shops.slug,
+        set: {
+          name: masterShop.name,
+          address: masterShop.address,
+          postcode: masterShop.postcode,
+          openingHours: masterShop.openingHours,
+          active: true,
+        },
+      })
+      .returning();
+    syncedShops.push(shop);
+  }
+
+  return syncedShops;
+}

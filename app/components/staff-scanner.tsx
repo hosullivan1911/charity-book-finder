@@ -3,7 +3,7 @@
 import type { IScannerControls } from "@zxing/browser";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { demoShops } from "../../lib/demo-data";
+import { masterShops } from "../../config/shops";
 import type { BookCondition, BookMetadata, Valuation } from "../../lib/types";
 import { BookIcon, ScanIcon, ShopIcon } from "./icons";
 
@@ -14,16 +14,16 @@ type IntakeResult = {
   demo?: boolean;
 };
 
-function formatPrice(pence: number) {
-  return new Intl.NumberFormat("en-GB", {
+function formatPrice(cents: number) {
+  return new Intl.NumberFormat("en-AU", {
     style: "currency",
-    currency: "GBP",
-  }).format(pence / 100);
+    currency: "AUD",
+  }).format(cents / 100);
 }
 
 export function StaffScanner() {
   const [isbn, setIsbn] = useState("9780571364909");
-  const [shopId, setShopId] = useState(demoShops[0].id);
+  const [shopId, setShopId] = useState(masterShops[0].id);
   const [location, setLocation] = useState("Fiction · I–K · Shelf 3");
   const [condition, setCondition] = useState<BookCondition>("good");
   const [scanning, setScanning] = useState(false);
@@ -162,7 +162,7 @@ export function StaffScanner() {
                 <p className="kicker">New donation</p>
                 <h2>Scan a book</h2>
               </div>
-              <span className="shop-badge"><ShopIcon /> {demoShops.find((shop) => shop.id === shopId)?.name}</span>
+              <span className="shop-badge"><ShopIcon /> {masterShops.find((shop) => shop.id === shopId)?.name}</span>
             </div>
 
             <button
@@ -195,7 +195,7 @@ export function StaffScanner() {
               <label className="form-field">
                 <span>Shop</span>
                 <select value={shopId} onChange={(event) => setShopId(Number(event.target.value))}>
-                  {demoShops.map((shop) => <option key={shop.id} value={shop.id}>{shop.name}</option>)}
+                  {masterShops.map((shop) => <option key={shop.id} value={shop.id}>{shop.name}</option>)}
                 </select>
               </label>
               <label className="form-field">
@@ -259,7 +259,7 @@ export function StaffScanner() {
               <div>
                 <span>Location saved</span>
                 <strong>{location}</strong>
-                <small>{demoShops.find((shop) => shop.id === shopId)?.name}</small>
+                <small>{masterShops.find((shop) => shop.id === shopId)?.name}</small>
               </div>
             </div>
 

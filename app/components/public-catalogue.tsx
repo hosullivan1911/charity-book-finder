@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { demoInventory, demoShops } from "../../lib/demo-data";
+import { masterShops } from "../../config/shops";
+import { demoInventory } from "../../lib/demo-data";
 import type { InventoryBook } from "../../lib/types";
 import { ArrowIcon, BookIcon, PinIcon, SearchIcon, ShopIcon } from "./icons";
 
-function formatPrice(pence: number) {
-  return new Intl.NumberFormat("en-GB", {
+function formatPrice(cents: number) {
+  return new Intl.NumberFormat("en-AU", {
     style: "currency",
-    currency: "GBP",
-  }).format(pence / 100);
+    currency: "AUD",
+  }).format(cents / 100);
 }
 
 export function PublicCatalogue() {
@@ -71,7 +72,7 @@ export function PublicCatalogue() {
             <span className="sr-only">Choose a charity shop</span>
             <select value={shop} onChange={(event) => setShop(event.target.value)}>
               <option value="all">All nearby shops</option>
-              {demoShops.map((item) => (
+              {masterShops.map((item) => (
                 <option key={item.id} value={item.slug}>
                   {item.name}
                 </option>
@@ -86,7 +87,7 @@ export function PublicCatalogue() {
 
         <div className="hero-meta" aria-label="Platform summary">
           <span><BookIcon /> {inventory.length || 6} books listed</span>
-          <span><ShopIcon /> {demoShops.length} participating shops</span>
+          <span><ShopIcon /> {masterShops.length} participating shops</span>
           <span>Updated by shop volunteers</span>
         </div>
       </section>
@@ -156,7 +157,7 @@ export function PublicCatalogue() {
           <h2>Meet the shops</h2>
         </div>
         <div className="shop-list">
-          {demoShops.map((item) => (
+          {masterShops.map((item) => (
             <article key={item.id}>
               <span className="shop-icon"><ShopIcon /></span>
               <div>
