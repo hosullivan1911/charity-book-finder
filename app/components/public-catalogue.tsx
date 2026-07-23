@@ -63,12 +63,12 @@ export function PublicCatalogue() {
       <section className="hero">
         <div className="eyebrow">
           <span />
-          Books with another chapter
+          Live charity-shop inventory
         </div>
-        <h1>Find a good book.<br />Do a little good.</h1>
+        <h1>Books, where they<br />actually are.</h1>
         <p>
-          Search the shelves of local charity shops before you visit. Every
-          purchase supports a cause and keeps a book in circulation.
+          Search live shelves across participating shops. See the price,
+          condition and exact location before you go.
         </p>
 
         <div className="search-panel">
@@ -85,7 +85,7 @@ export function PublicCatalogue() {
             <PinIcon />
             <span className="sr-only">Choose a charity shop</span>
             <select value={shop} onChange={(event) => setShop(event.target.value)}>
-              <option value="all">All nearby shops</option>
+              <option value="all">All locations</option>
               {masterShops.map((item) => (
                 <option key={item.id} value={item.slug}>
                   {item.name}
@@ -101,20 +101,20 @@ export function PublicCatalogue() {
 
         <div className="hero-meta" aria-label="Platform summary">
           <span><BookIcon /> {inventory.length} books listed</span>
-          <span><ShopIcon /> {masterShops.length} participating shops</span>
-          <span>Updated by shop volunteers</span>
+          <span><ShopIcon /> {masterShops.length} locations</span>
+          <span>Syncs every 15 seconds</span>
         </div>
       </section>
 
       <section className="catalogue-section" id="books">
         <div className="section-heading">
           <div>
-            <p className="kicker">{query || shop !== "all" ? "Search results" : "New on the shelves"}</p>
+            <p className="kicker">{query || shop !== "all" ? "Filtered inventory" : "Live inventory"}</p>
             <h2>
-              {loading ? "Checking local shelves…" : `${filtered.length} books ready to find`}
+              {loading ? "Checking shelves…" : `${filtered.length} available now`}
             </h2>
           </div>
-          <p>Stock moves quickly — call ahead if you’re making a special trip.</p>
+          <p>Availability reflects the latest shop scan.</p>
         </div>
 
         {filtered.length ? (
@@ -156,8 +156,8 @@ export function PublicCatalogue() {
         ) : (
           <div className="empty-state">
             <BookIcon />
-            <h3>No exact match on the shelves today</h3>
-            <p>Try an author surname, a shorter title, or search all shops.</p>
+            <h3>Nothing matched</h3>
+            <p>Try a shorter title, an author surname or all locations.</p>
             <button type="button" onClick={() => { setQuery(""); setShop("all"); }}>
               Clear search
             </button>
@@ -167,8 +167,8 @@ export function PublicCatalogue() {
 
       <section className="shop-strip">
         <div>
-          <p className="kicker">Browse in person</p>
-          <h2>Meet the shops</h2>
+          <p className="kicker">Locations</p>
+          <h2>Participating shops</h2>
         </div>
         <div className="shop-list">
           {masterShops.map((item) => (
@@ -187,10 +187,10 @@ export function PublicCatalogue() {
 
       <footer>
         <div className="brand footer-brand">
-          <span className="brand-mark"><BookIcon /></span>
-          <span>goodfind</span>
+          <span className="brand-mark" aria-hidden="true"><span /></span>
+          <span>spine</span>
         </div>
-        <p>A practical prototype for charity shops and book lovers.</p>
+        <p>Live local book inventory.</p>
       </footer>
 
       {selected && (
@@ -230,8 +230,8 @@ export function PublicCatalogue() {
               </div>
             </div>
             <p className="reservation-note">
-              Online reservation is the next MVP step. For now, ask a volunteer
-              for the shelf location shown above.
+              Ask a volunteer for the shelf location shown above. Reservations
+              are not yet available.
             </p>
           </section>
         </div>

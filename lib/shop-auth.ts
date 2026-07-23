@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export const SHOP_SESSION_COOKIE = "goodfind_shop_session";
+export const SHOP_SESSION_COOKIE = "spine_shop_session";
 export const SHOP_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
 type ShopSession = {

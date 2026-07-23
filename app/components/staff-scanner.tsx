@@ -143,11 +143,11 @@ export function StaffScanner({ shop }: { shop: Shop }) {
     <div className="staff-shell">
       <aside className="staff-aside">
         <div>
-          <p className="kicker">Volunteer tools</p>
-          <h1>Put a donated book on the shelf in under 30 seconds.</h1>
+          <p className="kicker">Shop intake</p>
+          <h1>Scan. Price. Shelve.</h1>
           <p>
-            Scan its ISBN, check the suggested charity-shop price, then tell
-            customers exactly where to find it.
+            One scan creates the listing, suggests a price and records exactly
+            where the book lives.
           </p>
         </div>
         <ol className="step-list">
@@ -157,7 +157,7 @@ export function StaffScanner({ shop }: { shop: Shop }) {
         </ol>
         <div className="aside-tip">
           <BookIcon />
-          <p><strong>Potentially valuable?</strong> Signed, first-edition and pre-1970 books are always flagged for a person to review.</p>
+          <p><strong>Review exceptions</strong> Signed, first-edition and pre-1970 books are held for a manual value check.</p>
         </div>
       </aside>
 
@@ -166,8 +166,8 @@ export function StaffScanner({ shop }: { shop: Shop }) {
           <form onSubmit={submit}>
             <div className="intake-heading">
               <div>
-                <p className="kicker">New donation</p>
-                <h2>Scan a book</h2>
+                <p className="kicker">New item</p>
+                <h2>Add book</h2>
               </div>
               <div className="shop-session">
                 <span className="shop-badge"><ShopIcon /> {shop.name}</span>
@@ -183,7 +183,7 @@ export function StaffScanner({ shop }: { shop: Shop }) {
               onClick={startScanner}
             >
               <span><ScanIcon /></span>
-              <strong>Open camera scanner</strong>
+              <strong>Scan ISBN</strong>
               <small>Point at the barcode on the back cover</small>
             </button>
 
@@ -223,13 +223,13 @@ export function StaffScanner({ shop }: { shop: Shop }) {
             {error && <p className="form-error" role="alert">{error}</p>}
 
             <button className="primary-action" type="submit" disabled={submitting}>
-              {submitting ? "Looking up and valuing…" : "Value and add to shop"}
+              {submitting ? "Looking up and valuing…" : "Add to live inventory"}
             </button>
           </form>
         ) : (
           <div className="result-view">
             <div className="success-mark">✓</div>
-            <p className="kicker">Added to the shelf</p>
+            <p className="kicker">Live now</p>
             <h2>{result.book.title}</h2>
             <p className="result-author">{result.book.author}</p>
 
@@ -243,7 +243,7 @@ export function StaffScanner({ shop }: { shop: Shop }) {
                 }}
               />
               <div className="valuation-panel">
-                <span>Suggested charity price</span>
+                <span>Suggested price</span>
                 <strong>{formatPrice(result.valuation.pricePence)}</strong>
                 <small className={`confidence ${result.valuation.confidence}`}>
                   {result.valuation.confidence} confidence

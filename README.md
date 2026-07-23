@@ -1,6 +1,6 @@
-# Goodfind — charity book finder
+# Spine — live charity-shop book inventory
 
-Goodfind is a mobile-first charity-shop book catalogue with two experiences:
+Spine is a mobile-first charity-shop book catalogue with two experiences:
 
 1. Customers search participating shops by title, author or ISBN and see the
    price and exact shelf location.
@@ -19,8 +19,8 @@ framework and root-directory settings at their detected Next.js defaults.
 
 | Vercel project | Purpose | Required `SITE_MODE` |
 | --- | --- | --- |
-| Goodfind catalogue | Public book search | `catalogue` |
-| Goodfind scanner | Volunteer intake | `scanner` |
+| Spine catalogue | Public book search | `catalogue` |
+| Spine intake | Volunteer scanning | `scanner` |
 
 In the catalogue project, open **Storage → Create Database**, choose Neon,
 select **Sydney, Australia (Southeast)**, and connect it. Connect that same Neon
