@@ -3,8 +3,12 @@
 import type { IScannerControls } from "@zxing/browser";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { masterShops } from "../../config/shops";
-import type { BookCondition, BookMetadata, Valuation } from "../../lib/types";
+import type {
+  BookCondition,
+  BookMetadata,
+  Shop,
+  Valuation,
+} from "../../lib/types";
 import { BookIcon, ScanIcon, ShopIcon } from "./icons";
 
 type IntakeResult = {
@@ -21,9 +25,8 @@ function formatPrice(cents: number) {
   }).format(cents / 100);
 }
 
-export function StaffScanner() {
+export function StaffScanner({ shop }: { shop: Shop }) {
   const [isbn, setIsbn] = useState("9780571364909");
-  const [shopId, setShopId] = useState(masterShops[0].id);
   const [location, setLocation] = useState("Fiction · I–K · Shelf 3");
   const [condition, setCondition] = useState<BookCondition>("good");
   const [scanning, setScanning] = useState(false);
@@ -106,7 +109,6 @@ export function StaffScanner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           isbn,
-          shopId,
           shelfLocation: location,
           condition,
         }),
@@ -130,6 +132,11 @@ export function StaffScanner() {
     setIsbn("");
     setError("");
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.reload();
   }
 
   return (
@@ -162,7 +169,12 @@ export function StaffScanner() {
                 <p className="kicker">New donation</p>
                 <h2>Scan a book</h2>
               </div>
-              <span className="shop-badge"><ShopIcon /> {masterShops.find((shop) => shop.id === shopId)?.name}</span>
+              <div className="shop-session">
+                <span className="shop-badge"><ShopIcon /> {shop.name}</span>
+                <button className="sign-out-button" onClick={signOut} type="button">
+                  Sign out
+                </button>
+              </div>
             </div>
 
             <button
@@ -192,12 +204,6 @@ export function StaffScanner() {
             </label>
 
             <div className="form-row">
-              <label className="form-field">
-                <span>Shop</span>
-                <select value={shopId} onChange={(event) => setShopId(Number(event.target.value))}>
-                  {masterShops.map((shop) => <option key={shop.id} value={shop.id}>{shop.name}</option>)}
-                </select>
-              </label>
               <label className="form-field">
                 <span>Condition</span>
                 <select value={condition} onChange={(event) => setCondition(event.target.value as BookCondition)}>
@@ -259,7 +265,7 @@ export function StaffScanner() {
               <div>
                 <span>Location saved</span>
                 <strong>{location}</strong>
-                <small>{masterShops.find((shop) => shop.id === shopId)?.name}</small>
+                <small>{shop.name}</small>
               </div>
             </div>
 

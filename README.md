@@ -7,35 +7,60 @@ Goodfind is a mobile-first charity-shop book catalogue with two experiences:
 2. Volunteers scan a book's ISBN, record its condition and location, receive a
    suggested charity-shop price, and add it to live stock.
 
-The application is a standard Next.js project designed for Vercel. It uses
-Neon Postgres through Drizzle ORM and falls back to demo stock until a database
-is connected.
+The application is a standard Next.js project designed to run as two Vercel
+sites from one repository. The public catalogue and protected shop scanner use
+the same Neon Postgres database, so newly scanned stock appears publicly within
+15 seconds.
 
-## Deploy on Vercel
+## Deploy the two Vercel sites
 
-1. In Vercel, choose **Add New → Project** and import
-   `hosullivan1911/charity-book-finder`.
-2. Leave the detected framework as **Next.js** and deploy.
-3. In the Vercel project, open **Storage → Create Database**, choose Neon,
-   select **Sydney, Australia (Southeast)**, and connect it to the project.
-   Confirm that Vercel has added `DATABASE_URL` to the project's environments.
-4. Apply the database migration once:
+Import `hosullivan1911/charity-book-finder` into Vercel twice. Leave the
+framework and root-directory settings at their detected Next.js defaults.
 
-   ```bash
-   git clone https://github.com/hosullivan1911/charity-book-finder.git
-   cd charity-book-finder
-   npm install
-   npx vercel link
-   npx vercel env pull .env.local
-   npm run db:migrate
-   ```
+| Vercel project | Purpose | Required `SITE_MODE` |
+| --- | --- | --- |
+| Goodfind catalogue | Public book search | `catalogue` |
+| Goodfind scanner | Volunteer intake | `scanner` |
 
-5. Redeploy from Vercel. Future pushes to the connected GitHub branch deploy
-   automatically.
+In the catalogue project, open **Storage → Create Database**, choose Neon,
+select **Sydney, Australia (Southeast)**, and connect it. Connect that same Neon
+database to the scanner project so both projects receive the same
+`DATABASE_URL`.
 
-The customer catalogue is at `/`. The volunteer scanner is at `/staff`.
-Vercel serves the site over HTTPS, which is required for camera access. On the
-first scan, allow camera permission in the phone browser.
+Add these server environment variables to the scanner project:
+
+```text
+SITE_MODE=scanner
+SHOP_LOGIN_EMAIL=your-volunteer-email
+SHOP_LOGIN_PASSWORD=your-strong-password
+SHOP_SESSION_SECRET=a-random-secret-of-at-least-32-characters
+SHOP_SLUG=harrys-test-shop
+```
+
+The catalogue project only needs:
+
+```text
+SITE_MODE=catalogue
+DATABASE_URL=<the same Neon connection string>
+```
+
+Apply the database migration once from either linked project:
+
+```bash
+git clone https://github.com/hosullivan1911/charity-book-finder.git
+cd charity-book-finder
+npm install
+npx vercel link
+npx vercel env pull .env.local
+npm run db:migrate
+```
+
+Redeploy both projects after adding their environment variables. Future pushes
+to `main` deploy both sites automatically.
+
+The catalogue site opens at `/`. The scanner site redirects `/` to `/staff` and
+requires the configured login. Vercel serves both over HTTPS, which is required
+for camera access.
 
 ## Run locally
 
