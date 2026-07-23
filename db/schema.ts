@@ -1,23 +1,36 @@
-import { sql } from "drizzle-orm";
-import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  boolean,
+  doublePrecision,
+  index,
+  integer,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
-export const shops = sqliteTable("shops", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+const createdAt = () =>
+  timestamp("created_at", { mode: "string", withTimezone: true })
+    .notNull()
+    .defaultNow();
+
+export const shops = pgTable("shops", {
+  id: serial("id").primaryKey(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   address: text("address").notNull(),
   postcode: text("postcode").notNull(),
-  latitude: real("latitude"),
-  longitude: real("longitude"),
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
   openingHours: text("opening_hours").notNull(),
-  active: integer("active", { mode: "boolean" }).notNull().default(true),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  active: boolean("active").notNull().default(true),
+  createdAt: createdAt(),
 });
 
-export const books = sqliteTable(
+export const books = pgTable(
   "books",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: serial("id").primaryKey(),
     isbn13: text("isbn13").notNull().unique(),
     title: text("title").notNull(),
     author: text("author").notNull(),
@@ -26,16 +39,18 @@ export const books = sqliteTable(
     coverUrl: text("cover_url"),
     subjects: text("subjects").notNull().default("[]"),
     format: text("format").notNull().default("Paperback"),
-    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { mode: "string", withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [index("books_title_idx").on(table.title), index("books_author_idx").on(table.author)],
 );
 
-export const inventory = sqliteTable(
+export const inventory = pgTable(
   "inventory",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: serial("id").primaryKey(),
     bookId: integer("book_id")
       .notNull()
       .references(() => books.id),
@@ -49,8 +64,10 @@ export const inventory = sqliteTable(
     valuationReasons: text("valuation_reasons").notNull().default("[]"),
     status: text("status").notNull().default("available"),
     scannedBy: text("scanned_by"),
-    scannedAt: text("scanned_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-    soldAt: text("sold_at"),
+    scannedAt: timestamp("scanned_at", { mode: "string", withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    soldAt: timestamp("sold_at", { mode: "string", withTimezone: true }),
   },
   (table) => [
     index("inventory_shop_status_idx").on(table.shopId, table.status),

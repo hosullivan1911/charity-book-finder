@@ -1,76 +1,86 @@
 # Goodfind — charity book finder
 
-Goodfind is a mobile-first prototype with two connected experiences:
+Goodfind is a mobile-first charity-shop book catalogue with two experiences:
 
-1. **Book discovery:** customers search participating charity shops by title,
-   author or ISBN, see the current price, and get an exact shelf location.
-2. **Shop intake:** a volunteer scans an ISBN, records condition and shelf
-   location, receives a transparent charity-shop valuation, and adds the copy
-   to live inventory.
+1. Customers search participating shops by title, author or ISBN and see the
+   price and exact shelf location.
+2. Volunteers scan a book's ISBN, record its condition and location, receive a
+   suggested charity-shop price, and add it to live stock.
 
-## What works
+The application is a standard Next.js project designed for Vercel. It uses
+Neon Postgres through Drizzle ORM and falls back to demo stock until a database
+is connected.
 
-- Responsive public catalogue with shop and book search
-- Mobile camera barcode scanning using `@zxing/browser`
-- Manual ISBN entry as a universal fallback
-- Open Library metadata and cover lookup
-- Rule-based GBP valuation with confidence and explanation
-- Manual-review flag for potentially collectible books
-- D1 schema for shops, canonical books and individual inventory copies
-- API routes for catalogue reads, shop lists and stock intake
-- Demo data fallback so the interface remains explorable before a database is
-  connected
+## Deploy on Vercel
 
-## Valuation model
+1. In Vercel, choose **Add New → Project** and import
+   `hosullivan1911/charity-book-finder`.
+2. Leave the detected framework as **Next.js** and deploy.
+3. In the Vercel project, open **Storage → Create Database**, choose Neon, and
+   connect it to the project. Confirm that Vercel has added `DATABASE_URL` to
+   the project's environments.
+4. Apply the database migration once:
 
-The MVP recommends normal charity-shop shelf prices, not collector-market
-values. It begins with a £2.50 paperback or £3.50 hardback baseline and then
-applies small, capped adjustments for:
+   ```bash
+   git clone https://github.com/hosullivan1911/charity-book-finder.git
+   cd charity-book-finder
+   npm install
+   npx vercel link
+   npx vercel env pull .env.local
+   npm run db:migrate
+   ```
 
-- condition;
-- publication recency;
-- broad subject demand; and
-- accessible children's pricing.
+5. Redeploy from Vercel. Future pushes to the connected GitHub branch deploy
+   automatically.
 
-Prices are rounded to 50p and constrained to £1–£8. Books published before
-1970 or identified as signed, first, limited or antiquarian editions are held
-for manual review. This protects shops from confidently underpricing the cases
-where automated commodity pricing is least appropriate.
+The customer catalogue is at `/`. The volunteer scanner is at `/staff`.
+Vercel serves the site over HTTPS, which is required for camera access. On the
+first scan, allow camera permission in the phone browser.
 
-For a later production model, replace or calibrate these weights using each
-charity's actual sell-through history, local shop demand and days-on-shelf.
-
-## Local development
+## Run locally
 
 ```bash
+git clone https://github.com/hosullivan1911/charity-book-finder.git
+cd charity-book-finder
+cp .env.example .env.local
 npm install
 npm run dev
 ```
 
-Then open the public catalogue at `/` or the volunteer intake flow at `/staff`.
+Replace the example `DATABASE_URL` with a real Neon connection string. Without
+one, the public catalogue remains usable with demo data and scans are valued
+without being permanently stored.
+
+## Useful commands
+
+```bash
+npm run dev          # start the local app
+npm run lint         # run ESLint
+npm test             # lint and create a production build
+npm run db:generate  # generate a migration after a schema change
+npm run db:migrate   # apply pending migrations
+npm run db:studio    # inspect the connected database
+```
+
+## Valuation model
+
+The MVP recommends normal charity-shop shelf prices, not collector-market
+values. It starts with a £2.50 paperback or £3.50 hardback baseline, adjusts for
+condition, recency and subject demand, rounds to 50p, and caps prices at £1–£8.
+Potentially collectible books are flagged for a manual check.
 
 ## Architecture
 
-- Vinext / React / TypeScript
-- Cloudflare D1 via Drizzle ORM
-- Open Library ISBN metadata API
-- ZXing browser barcode scanner
+- Next.js, React and TypeScript
+- Vercel hosting and server functions
+- Neon Postgres via Drizzle ORM
+- Open Library ISBN metadata
+- ZXing browser barcode scanner with rear-camera preference
 
-Database tables are defined in `db/schema.ts`; generated migrations live in
-`drizzle/`.
+Database tables are defined in `db/schema.ts`; migrations live in `drizzle/`.
 
-## Production gaps to close
+## Before a public launch
 
-This repository is an MVP, not yet a multi-charity production service. Before a
-public launch:
-
-- add external staff authentication and per-shop authorization;
-- add a reservation / sold workflow and stale-stock expiry;
-- allow managers to override prices and audit those decisions;
-- replace prototype shop records with verified partner data;
-- add privacy, accessibility and operational policies;
-- add stock analytics and valuation calibration from real sell-through data;
-- confirm Open Library usage and add a secondary metadata source for misses.
-
-The key product assumption to test first is operational: can volunteers scan
-and locate books quickly enough that the inventory stays trustworthy?
+Add staff authentication and per-shop permissions, manager price overrides,
+sold/reserved workflows, verified partner records, privacy and accessibility
+policies, stock analytics, and a secondary metadata provider.

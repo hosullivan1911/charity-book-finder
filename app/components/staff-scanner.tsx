@@ -39,22 +39,39 @@ export function StaffScanner() {
     const reader = new BrowserMultiFormatReader();
 
     reader
-      .decodeFromVideoDevice(undefined, videoRef.current, (decoded, scanError, controls) => {
-        controlsRef.current = controls;
-        if (!active || !decoded) return;
-        const value = decoded.getText().replace(/\D/g, "");
-        if (value.length === 13) {
-          setIsbn(value);
-          setScanning(false);
-          controls.stop();
-        }
-        if (scanError?.name && scanError.name !== "NotFoundException") {
-          setError("The camera could not read that barcode. Try the number instead.");
-        }
-      })
-      .catch(() => {
+      .decodeFromConstraints(
+        {
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        },
+        videoRef.current,
+        (decoded, scanError, controls) => {
+          controlsRef.current = controls;
+          if (!active || !decoded) return;
+          const value = decoded.getText().replace(/\D/g, "");
+          if (value.length === 13) {
+            setIsbn(value);
+            setScanning(false);
+            controls.stop();
+          }
+          if (scanError?.name && scanError.name !== "NotFoundException") {
+            setError("The camera could not read that barcode. Try the number instead.");
+          }
+        },
+      )
+      .catch((cameraError: unknown) => {
         setScanning(false);
-        setError("Camera access is unavailable. Enter the ISBN printed above the barcode.");
+        const errorName =
+          cameraError instanceof DOMException ? cameraError.name : "";
+        setError(
+          errorName === "NotAllowedError"
+            ? "Camera permission was declined. Allow camera access in your browser settings, then try again."
+            : "Camera access is unavailable. Enter the ISBN printed above the barcode.",
+        );
       });
 
     return () => {
@@ -63,6 +80,19 @@ export function StaffScanner() {
       controlsRef.current = null;
     };
   }, [scanning]);
+
+  function startScanner() {
+    setError("");
+    if (!window.isSecureContext) {
+      setError("The camera requires HTTPS. Open the Vercel URL, or enter the ISBN manually.");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("This browser does not support camera scanning. Enter the ISBN manually.");
+      return;
+    }
+    setScanning(true);
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -138,7 +168,7 @@ export function StaffScanner() {
             <button
               className="camera-button"
               type="button"
-              onClick={() => { setError(""); setScanning(true); }}
+              onClick={startScanner}
             >
               <span><ScanIcon /></span>
               <strong>Open camera scanner</strong>
