@@ -36,10 +36,10 @@ export function ShopLogin() {
     <div className="login-shell">
       <section className="login-card">
         <span className="login-icon"><ShopIcon /></span>
-        <p className="kicker">Volunteer access</p>
-        <h1>Sign in to your shop</h1>
+        <p className="kicker">Spine / Intake</p>
+        <h1>Shop access</h1>
         <p className="login-intro">
-          Only approved volunteers can add books to live shop inventory.
+          Sign in with your shop credentials to manage live inventory.
         </p>
         <form onSubmit={submit}>
           <label className="form-field">

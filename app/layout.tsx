@@ -14,11 +14,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Goodfind — charity shop books, found",
-    template: "%s · Goodfind",
+    default: "Spine — live local book inventory",
+    template: "%s · Spine",
   },
   description:
-    "Search the shelves of participating charity shops and reserve your next great read.",
+    "Search live book inventory across participating charity shops.",
   other: {
     "codex-preview": "development",
   },
