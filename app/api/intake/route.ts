@@ -1,6 +1,8 @@
 import { eq } from "drizzle-orm";
+import { masterShops } from "../../../config/shops";
 import { getDb } from "../../../db";
-import { books, inventory, shops } from "../../../db/schema";
+import { books, inventory } from "../../../db/schema";
+import { syncMasterShops } from "../../../db/sync-master-shops";
 import { lookupIsbn } from "../../../lib/isbn";
 import type { BookCondition } from "../../../lib/types";
 import { valueBook } from "../../../lib/valuation";
@@ -20,8 +22,9 @@ export async function POST(request: Request) {
     const isbn = payload.isbn?.trim() ?? "";
     const shelfLocation = payload.shelfLocation?.trim() ?? "";
     const condition = payload.condition ?? "good";
+    const masterShop = masterShops.find((shop) => shop.id === payload.shopId);
 
-    if (!isbn || !payload.shopId || !shelfLocation) {
+    if (!isbn || !masterShop || !shelfLocation) {
       return Response.json(
         { error: "ISBN, shop and shelf location are required." },
         { status: 400 },
@@ -36,7 +39,8 @@ export async function POST(request: Request) {
 
     try {
       const db = await getDb();
-      const [shop] = await db.select().from(shops).where(eq(shops.id, payload.shopId)).limit(1);
+      const syncedShops = await syncMasterShops(db);
+      const shop = syncedShops.find((item) => item.slug === masterShop.slug);
       if (!shop) {
         return Response.json({ error: "That shop could not be found." }, { status: 404 });
       }

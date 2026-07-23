@@ -2,7 +2,7 @@ import type { BookCondition, BookMetadata, Valuation } from "./types";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-function roundToFiftyPence(value: number) {
+function roundToFiftyCents(value: number) {
   return Math.round(value / 50) * 50;
 }
 
@@ -67,7 +67,7 @@ export function valueBook(
   }
 
   return {
-    pricePence: Math.min(800, Math.max(100, roundToFiftyPence(price))),
+    pricePence: Math.min(800, Math.max(100, roundToFiftyCents(price))),
     confidence: evidence >= 4 ? "high" : evidence >= 2 ? "medium" : "low",
     reasons: reasons.slice(0, 3),
     manualReview,

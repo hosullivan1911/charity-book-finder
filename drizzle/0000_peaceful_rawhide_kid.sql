@@ -50,7 +50,5 @@ CREATE INDEX "inventory_shop_status_idx" ON "inventory" USING btree ("shop_id","
 CREATE INDEX "inventory_book_status_idx" ON "inventory" USING btree ("book_id","status");--> statement-breakpoint
 INSERT INTO "shops" ("slug", "name", "address", "postcode", "opening_hours")
 VALUES
-	('oxfam-islington', 'Oxfam Books Islington', '48 Upper Street, London', 'N1 0PN', 'Open today · 10:00–18:00'),
-	('shelter-camden', 'Shelter Camden', '43 Parkway, London', 'NW1 7PN', 'Open today · 10:00–18:00'),
-	('battersea-bookshop', 'Battersea Community Books', '128 Battersea Park Road, London', 'SW11 4LY', 'Open today · 09:30–17:30')
+	('harrys-test-shop', 'Harry''s Test Shop', 'Perth, Western Australia', '6000', 'Trial shop · By arrangement')
 ON CONFLICT ("slug") DO NOTHING;

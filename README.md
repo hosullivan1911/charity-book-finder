@@ -16,9 +16,9 @@ is connected.
 1. In Vercel, choose **Add New → Project** and import
    `hosullivan1911/charity-book-finder`.
 2. Leave the detected framework as **Next.js** and deploy.
-3. In the Vercel project, open **Storage → Create Database**, choose Neon, and
-   connect it to the project. Confirm that Vercel has added `DATABASE_URL` to
-   the project's environments.
+3. In the Vercel project, open **Storage → Create Database**, choose Neon,
+   select **Sydney, Australia (Southeast)**, and connect it to the project.
+   Confirm that Vercel has added `DATABASE_URL` to the project's environments.
 4. Apply the database migration once:
 
    ```bash
@@ -62,11 +62,19 @@ npm run db:migrate   # apply pending migrations
 npm run db:studio    # inspect the connected database
 ```
 
+## Edit participating shops
+
+The master list is deliberately isolated in [`config/shops.ts`](config/shops.ts).
+Edit that one file in GitHub to add, remove or rename shops, then commit the
+change. Vercel will redeploy it automatically. Keep every `id` and `slug`
+unique; the intake API synchronises the configured shops into Neon.
+
 ## Valuation model
 
 The MVP recommends normal charity-shop shelf prices, not collector-market
-values. It starts with a £2.50 paperback or £3.50 hardback baseline, adjusts for
-condition, recency and subject demand, rounds to 50p, and caps prices at £1–£8.
+values. It starts with an A$2.50 paperback or A$3.50 hardback baseline, adjusts
+for condition, recency and subject demand, rounds to 50 cents, and caps prices
+at A$1–A$8.
 Potentially collectible books are flagged for a manual check.
 
 ## Architecture

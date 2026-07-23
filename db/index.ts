@@ -2,7 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 
-type Database = ReturnType<typeof createDatabase>;
+export type Database = ReturnType<typeof createDatabase>;
 
 let database: Database | undefined;
 

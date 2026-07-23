@@ -1,34 +1,5 @@
-import type { InventoryBook, Shop } from "./types";
-
-export const demoShops: Shop[] = [
-  {
-    id: 1,
-    slug: "oxfam-islington",
-    name: "Oxfam Books Islington",
-    address: "48 Upper Street, London",
-    postcode: "N1 0PN",
-    openingHours: "Open today · 10:00–18:00",
-    distance: "0.7 mi",
-  },
-  {
-    id: 2,
-    slug: "shelter-camden",
-    name: "Shelter Camden",
-    address: "43 Parkway, London",
-    postcode: "NW1 7PN",
-    openingHours: "Open today · 10:00–18:00",
-    distance: "1.8 mi",
-  },
-  {
-    id: 3,
-    slug: "battersea-bookshop",
-    name: "Battersea Community Books",
-    address: "128 Battersea Park Road, London",
-    postcode: "SW11 4LY",
-    openingHours: "Open today · 09:30–17:30",
-    distance: "3.2 mi",
-  },
-];
+import { masterShops } from "../config/shops";
+import type { InventoryBook } from "./types";
 
 export const demoInventory: InventoryBook[] = [
   {
@@ -41,7 +12,7 @@ export const demoInventory: InventoryBook[] = [
     coverUrl: "https://covers.openlibrary.org/b/isbn/9780571364909-L.jpg",
     format: "Paperback",
     subjects: ["Fiction", "Literary"],
-    shop: demoShops[0],
+    shop: masterShops[0],
     shelfLocation: "Fiction · I–K · Shelf 3",
     condition: "good",
     pricePence: 350,
@@ -59,7 +30,7 @@ export const demoInventory: InventoryBook[] = [
     coverUrl: "https://covers.openlibrary.org/b/isbn/9781784702861-L.jpg",
     format: "Paperback",
     subjects: ["History", "Science"],
-    shop: demoShops[1],
+    shop: masterShops[0],
     shelfLocation: "History · General · Shelf 2",
     condition: "good",
     pricePence: 400,
@@ -77,7 +48,7 @@ export const demoInventory: InventoryBook[] = [
     coverUrl: "https://covers.openlibrary.org/b/isbn/9781529114297-L.jpg",
     format: "Paperback",
     subjects: ["Fiction", "Contemporary"],
-    shop: demoShops[2],
+    shop: masterShops[0],
     shelfLocation: "Fiction · T–Z · Shelf 1",
     condition: "like_new",
     pricePence: 500,
@@ -95,7 +66,7 @@ export const demoInventory: InventoryBook[] = [
     coverUrl: "https://covers.openlibrary.org/b/isbn/9780141182636-L.jpg",
     format: "Paperback",
     subjects: ["Classics", "Fiction"],
-    shop: demoShops[0],
+    shop: masterShops[0],
     shelfLocation: "Classics · P · Shelf 4",
     condition: "fair",
     pricePence: 250,
@@ -113,7 +84,7 @@ export const demoInventory: InventoryBook[] = [
     coverUrl: "https://covers.openlibrary.org/b/isbn/9780241341131-L.jpg",
     format: "Paperback",
     subjects: ["Psychology", "Health"],
-    shop: demoShops[1],
+    shop: masterShops[0],
     shelfLocation: "Wellbeing · Shelf 2",
     condition: "good",
     pricePence: 450,
@@ -131,7 +102,7 @@ export const demoInventory: InventoryBook[] = [
     coverUrl: "https://covers.openlibrary.org/b/isbn/9781408855652-L.jpg",
     format: "Paperback",
     subjects: ["Children", "Fantasy"],
-    shop: demoShops[2],
+    shop: masterShops[0],
     shelfLocation: "Children · 9–12 · Shelf 5",
     condition: "good",
     pricePence: 300,
