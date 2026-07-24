@@ -5,16 +5,11 @@ import { getDb } from "../../../db";
 import { books, inventory } from "../../../db/schema";
 import { syncMasterShops } from "../../../db/sync-master-shops";
 import { lookupIsbn } from "../../../lib/isbn";
-import type { BookCondition } from "../../../lib/types";
 import { SHOP_SESSION_COOKIE, readShopSession } from "../../../lib/shop-auth";
 
 type IntakePayload = {
   isbn?: string;
-  shelfLocation?: string;
-  condition?: BookCondition;
 };
-
-const allowedConditions: BookCondition[] = ["like_new", "good", "fair"];
 
 export async function POST(request: Request) {
   try {
@@ -36,17 +31,12 @@ export async function POST(request: Request) {
 
     const payload = (await request.json()) as IntakePayload;
     const isbn = payload.isbn?.trim() ?? "";
-    const shelfLocation = payload.shelfLocation?.trim() ?? "";
-    const condition = payload.condition ?? "good";
 
-    if (!isbn || !shelfLocation) {
+    if (!isbn) {
       return Response.json(
-        { error: "ISBN, shop and shelf location are required." },
+        { error: "An ISBN is required." },
         { status: 400 },
       );
-    }
-    if (!allowedConditions.includes(condition)) {
-      return Response.json({ error: "Invalid condition." }, { status: 400 });
     }
 
     const metadata = await lookupIsbn(isbn);
@@ -94,10 +84,10 @@ export async function POST(request: Request) {
         .values({
           bookId: book.id,
           shopId: shop.id,
-          shelfLocation,
-          condition,
-          // Retained only for compatibility with the existing database schema.
-          // Giveleaf does not calculate or display prices.
+          // Retained only as hidden compatibility values for the first schema.
+          // Giveleaf does not collect or display shelf, condition or pricing.
+          shelfLocation: "",
+          condition: "good",
           pricePence: 0,
           valuationConfidence: "not_used",
           valuationReasons: "[]",

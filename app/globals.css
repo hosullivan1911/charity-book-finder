@@ -1220,14 +1220,6 @@ footer p {
   max-width: 145px;
 }
 
-.remove-camera-button {
-  background: #3d2822;
-}
-
-.remove-camera-button > span {
-  background: #ffd4c7;
-}
-
 .form-divider {
   align-items: center;
   color: var(--muted);
@@ -1331,11 +1323,6 @@ footer p {
   opacity: 0.55;
 }
 
-.remove-action {
-  background: var(--ink);
-  color: white;
-}
-
 .result-view {
   text-align: center;
 }
@@ -1351,11 +1338,6 @@ footer p {
   justify-content: center;
   margin: 0 auto 20px;
   width: 52px;
-}
-
-.success-mark.removed {
-  background: var(--ink);
-  color: white;
 }
 
 .result-view .kicker {
@@ -1416,36 +1398,11 @@ footer p {
   text-transform: uppercase;
 }
 
-.location-confirmation {
-  color: var(--ink);
-  margin: 20px 0 18px;
-  text-align: left;
-}
-
-.location-confirmation div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.location-confirmation span,
-.location-confirmation small {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.location-confirmation strong {
-  font-size: 13px;
-}
-
 .stock-card {
   min-width: 0;
 }
 
 .inventory-filters {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 1fr auto;
   margin-bottom: 20px;
 }
 
@@ -1464,8 +1421,7 @@ footer p {
   width: 17px;
 }
 
-.inventory-search input,
-.inventory-filters select {
+.inventory-search input {
   background: white;
   border: 0;
   color: var(--ink);
@@ -1478,14 +1434,6 @@ footer p {
   width: 100%;
 }
 
-.inventory-filters > label:last-child {
-  border: 1px solid var(--line);
-}
-
-.inventory-filters select {
-  padding: 0 12px;
-}
-
 .inventory-list {
   border-top: 1px solid var(--line);
 }
@@ -1495,7 +1443,7 @@ footer p {
   border-bottom: 1px solid var(--line);
   display: grid;
   gap: 14px;
-  grid-template-columns: 46px minmax(0, 1.4fr) minmax(120px, 0.8fr) auto;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
   padding: 13px 0;
 }
 
@@ -1505,8 +1453,7 @@ footer p {
   width: 46px;
 }
 
-.inventory-book-copy,
-.inventory-location {
+.inventory-book-copy {
   min-width: 0;
 }
 
@@ -1520,8 +1467,7 @@ footer p {
 }
 
 .inventory-book-copy p,
-.inventory-book-copy small,
-.inventory-location small {
+.inventory-book-copy small {
   color: var(--muted);
   display: block;
   font-size: 9px;
@@ -1533,18 +1479,7 @@ footer p {
   margin-top: 4px;
 }
 
-.inventory-location strong {
-  display: block;
-  font-size: 11px;
-  line-height: 1.35;
-  margin-bottom: 5px;
-}
-
-.inventory-location small {
-  text-transform: uppercase;
-}
-
-.sold-button {
+.remove-book-button {
   background: transparent;
   border: 1px solid var(--line);
   color: var(--danger);
@@ -1555,12 +1490,12 @@ footer p {
   padding: 9px 10px;
 }
 
-.sold-button:hover {
+.remove-book-button:hover {
   background: #fff0eb;
   border-color: var(--accent);
 }
 
-.sold-button:disabled {
+.remove-book-button:disabled {
   cursor: wait;
   opacity: 0.55;
 }
@@ -1930,25 +1865,12 @@ footer p {
     width: 96px;
   }
 
-  .inventory-filters {
-    grid-template-columns: 1fr;
-  }
-
-  .inventory-filters select {
-    width: 100%;
-  }
-
   .inventory-row {
     align-items: start;
     grid-template-columns: 46px 1fr auto;
   }
 
-  .inventory-location {
-    grid-column: 2 / -1;
-    grid-row: 2;
-  }
-
-  .sold-button {
+  .remove-book-button {
     grid-column: 3;
     grid-row: 1;
   }

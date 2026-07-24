@@ -8,7 +8,7 @@ import { StaffScanner } from "../components/staff-scanner";
 
 export const metadata = {
   title: "Shop scanner",
-  description: "Scan donated books in and sold books out in seconds.",
+  description: "Scan donated books into a shop's live inventory in seconds.",
 };
 
 export default async function StaffPage() {

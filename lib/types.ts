@@ -1,5 +1,3 @@
-export type BookCondition = "like_new" | "good" | "fair";
-
 export type Shop = {
   id: number;
   slug: string;
@@ -18,12 +16,10 @@ export type InventoryBook = {
   author: string;
   publisher?: string | null;
   publishedYear?: number | null;
-  coverUrl?: string | null;
+  coverUrl: string;
   format: string;
   subjects: string[];
   shop: Shop;
-  shelfLocation: string;
-  condition: BookCondition;
   scannedAt: string;
 };
 
@@ -33,7 +29,7 @@ export type BookMetadata = {
   author: string;
   publisher?: string;
   publishedYear?: number;
-  coverUrl?: string;
+  coverUrl: string;
   subjects: string[];
   format: string;
 };

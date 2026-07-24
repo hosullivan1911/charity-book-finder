@@ -74,7 +74,7 @@ function BookCard({
           <PinIcon />
           <span>
             <strong>{book.shop.name}</strong>
-            {book.shelfLocation}
+            {book.shop.address}
           </span>
         </div>
       </div>
@@ -613,7 +613,7 @@ export function PublicCatalogue() {
               />
               <div>
                 <p className="book-format">
-                  {selected.format} · {selected.condition.replace("_", " ")}
+                  {selected.format}
                 </p>
                 <h2 id="book-title">{selected.title}</h2>
                 <p className="modal-author">{selected.author}</p>
@@ -623,15 +623,14 @@ export function PublicCatalogue() {
               <PinIcon />
               <div>
                 <strong>Find it at {selected.shop.name}</strong>
-                <span>{selected.shelfLocation}</span>
                 <span>
                   {selected.shop.address}, {selected.shop.postcode}
                 </span>
               </div>
             </div>
             <p className="reservation-note">
-              Ask a volunteer for the shelf location shown above. Reservations
-              are not yet available.
+              This book is currently listed as available. Reservations are not
+              yet available.
             </p>
           </section>
         </div>

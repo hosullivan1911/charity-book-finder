@@ -4,10 +4,9 @@ Giveleaf is a mobile-first charity-shop book finder with two connected
 experiences:
 
 1. Customers enter an Australian address and travel distance, then search
-   nearby participating shops by title, author or ISBN and see the condition
-   and exact shelf location.
-2. Volunteers scan donated books into stock, scan sold books out, and search or
-   filter their shop's current inventory.
+   nearby participating shops by title, author or ISBN.
+2. Volunteers scan donated books into stock, search their current inventory,
+   and remove any book that is no longer available.
 
 The application is a standard Next.js project designed to run as two Vercel
 sites from one repository. The public catalogue and protected shop scanner use
@@ -44,18 +43,15 @@ stored by Giveleaf.
 
 ## Shop workflow
 
-After signing in, volunteers have three options:
+After signing in, volunteers have two options:
 
-- **Stock in** — select the shelf location and condition, then scan the ISBN.
-  The book is identified and immediately added to live inventory.
-- **Stock out** — scan the ISBN of a sold book. One available copy at that shop
-  is marked as sold and disappears from both the shop inventory and public
-  catalogue.
-- **Inventory** — search by title, author, ISBN or shelf, filter by condition,
-  and manually mark an item as sold when needed.
+- **Stock in** — scan the ISBN. The book and its cover are identified and
+  immediately added to live inventory.
+- **Inventory** — search by title, author or ISBN and remove any item that is no
+  longer available.
 
-If a shop has multiple copies of the same ISBN, each stock-out scan removes one
-copy.
+If a shop has multiple copies of the same ISBN, each is shown as a separate
+inventory item and can be removed independently.
 
 ## Deploy the two Vercel sites
 
