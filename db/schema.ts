@@ -27,6 +27,39 @@ export const shops = pgTable("shops", {
   createdAt: createdAt(),
 });
 
+export const staffUsers = pgTable(
+  "staff_users",
+  {
+    id: serial("id").primaryKey(),
+    username: text("username").notNull().unique(),
+    passwordHash: text("password_hash").notNull(),
+    shopId: integer("shop_id")
+      .notNull()
+      .references(() => shops.id),
+    createdAt: createdAt(),
+  },
+  (table) => [index("staff_users_shop_idx").on(table.shopId)],
+);
+
+export const staffSessions = pgTable(
+  "staff_sessions",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => staffUsers.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", {
+      mode: "string",
+      withTimezone: true,
+    }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("staff_sessions_user_idx").on(table.userId),
+    index("staff_sessions_expiry_idx").on(table.expiresAt),
+  ],
+);
+
 export const books = pgTable(
   "books",
   {

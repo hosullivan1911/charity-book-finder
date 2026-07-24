@@ -72,10 +72,7 @@ Add these server environment variables to the scanner project:
 
 ```text
 SITE_MODE=scanner
-SHOP_LOGIN_EMAIL=your-volunteer-email
-SHOP_LOGIN_PASSWORD=your-strong-password
-SHOP_SESSION_SECRET=a-random-secret-of-at-least-32-characters
-SHOP_SLUG=harrys-test-shop
+DATABASE_URL=<the shared Neon connection string>
 ```
 
 The catalogue project only needs:
@@ -85,7 +82,8 @@ SITE_MODE=catalogue
 DATABASE_URL=<the same Neon connection string>
 ```
 
-Apply the existing database migrations once from either linked project:
+Giveleaf creates its small trial schema automatically on the first request.
+Migrations can also be applied manually from a linked local checkout:
 
 ```bash
 git clone https://github.com/hosullivan1911/charity-book-finder.git
@@ -96,15 +94,14 @@ npx vercel env pull .env.local
 npm run db:migrate
 ```
 
-No new migration is required when upgrading an existing Spine deployment to
-Giveleaf.
-
 Redeploy both projects after adding their environment variables. Future pushes
 to `main` deploy both sites automatically.
 
 The catalogue site opens at `/`. The scanner site redirects `/` to `/staff` and
-requires the configured login. Vercel serves both over HTTPS, which is required
-for camera access.
+allows staff to create a username and password, choose a participating shop,
+and sign in. Passwords are stored only as salted hashes. Each account is
+permanently linked to its selected shop, and its session is stored securely in
+Neon. Vercel serves both sites over HTTPS, which is required for camera access.
 
 ## Run locally
 
@@ -156,6 +153,6 @@ to avoid requiring an immediate production migration.
 
 ## Before a public launch
 
-Add per-volunteer accounts and permissions, verified partner records, privacy
-and accessibility policies, stock analytics, audit history, and a secondary
-metadata provider.
+Add shop invitation or manager approval codes, login rate limiting, password
+recovery, verified partner records, privacy and accessibility policies, stock
+analytics, fuller audit history, and a secondary metadata provider.

@@ -951,6 +951,29 @@ footer p {
   margin: 16px 0 28px;
 }
 
+.auth-switch {
+  border: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 26px;
+  padding: 3px;
+}
+
+.auth-switch button {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+  padding: 10px 12px;
+}
+
+.auth-switch button.active {
+  background: var(--ink);
+  color: white;
+}
+
 .staff-shell {
   display: grid;
   gap: 60px;

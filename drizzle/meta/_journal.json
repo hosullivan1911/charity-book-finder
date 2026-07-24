@@ -15,6 +15,13 @@
       "when": 1784792718948,
       "tag": "0001_australian_test_shop",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784886127697,
+      "tag": "0002_dry_albert_cleary",
+      "breakpoints": true
     }
   ]
 }

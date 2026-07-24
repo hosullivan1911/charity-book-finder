@@ -33,6 +33,25 @@ export async function ensureDatabaseSchema(db: Database) {
   `);
 
   await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "staff_users" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "username" text NOT NULL UNIQUE,
+      "password_hash" text NOT NULL,
+      "shop_id" integer NOT NULL REFERENCES "shops"("id"),
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "staff_sessions" (
+      "token_hash" text PRIMARY KEY NOT NULL,
+      "user_id" integer NOT NULL REFERENCES "staff_users"("id") ON DELETE CASCADE,
+      "expires_at" timestamp with time zone NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "books" (
       "id" serial PRIMARY KEY NOT NULL,
       "isbn13" text NOT NULL UNIQUE,
@@ -71,6 +90,18 @@ export async function ensureDatabaseSchema(db: Database) {
   await db.execute(
     sql`CREATE INDEX IF NOT EXISTS "books_author_idx" ON "books" ("author")`,
   );
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "staff_users_shop_idx"
+    ON "staff_users" ("shop_id")
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "staff_sessions_user_idx"
+    ON "staff_sessions" ("user_id")
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "staff_sessions_expiry_idx"
+    ON "staff_sessions" ("expires_at")
+  `);
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "inventory_shop_status_idx"
     ON "inventory" ("shop_id", "status")
