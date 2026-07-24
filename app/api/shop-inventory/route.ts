@@ -39,6 +39,8 @@ function mapInventoryRow(row: InventoryRow): InventoryBook {
       address: row.shop.address,
       postcode: row.shop.postcode,
       openingHours: row.shop.openingHours,
+      latitude: row.shop.latitude,
+      longitude: row.shop.longitude,
     },
     shelfLocation: row.inventory.shelfLocation,
     condition: row.inventory.condition as InventoryBook["condition"],

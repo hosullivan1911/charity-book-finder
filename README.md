@@ -3,8 +3,9 @@
 Giveleaf is a mobile-first charity-shop book finder with two connected
 experiences:
 
-1. Customers search participating shops by title, author or ISBN and see the
-   condition and exact shelf location.
+1. Customers enter an Australian address and travel distance, then search
+   nearby participating shops by title, author or ISBN and see the condition
+   and exact shelf location.
 2. Volunteers scan donated books into stock, scan sold books out, and search or
    filter their shop's current inventory.
 
@@ -15,6 +16,25 @@ seconds.
 
 Giveleaf does not set or display book prices. Each participating charity shop
 remains responsible for its own pricing.
+
+## Customer discovery
+
+Customers can:
+
+- enter an Australian address, suburb or postcode and choose a 5, 10, 25, 50
+  or 100 km search radius;
+- see only participating shops and live inventory inside that area;
+- search by title, author, ISBN or subject;
+- receive intelligent alternatives when the exact book is unavailable.
+
+The recommendation model looks up the requested book's author, subjects and
+publication profile through Open Library, then ranks only books that are
+currently in stock inside the selected area. It never recommends an invented or
+unavailable title. If metadata enrichment is temporarily offline, Giveleaf
+falls back to query-token similarity.
+
+Address searches are sent to the OpenStreetMap Nominatim geocoder and are not
+stored by Giveleaf.
 
 ## Shop workflow
 
@@ -111,8 +131,9 @@ npm run db:studio    # inspect the connected database
 
 The master list is deliberately isolated in [`config/shops.ts`](config/shops.ts).
 Edit that one file in GitHub to add, remove or rename shops, then commit the
-change. Vercel will redeploy it automatically. Keep every `id` and `slug`
-unique; the stock API synchronises the configured shops into Neon.
+change. Each shop also needs `latitude` and `longitude` so distance filtering
+works. Vercel will redeploy the change automatically. Keep every `id` and
+`slug` unique; the stock API synchronises the configured shops into Neon.
 
 ## Architecture
 
@@ -120,6 +141,8 @@ unique; the stock API synchronises the configured shops into Neon.
 - Vercel hosting and server functions
 - Neon Postgres via Drizzle ORM
 - Open Library ISBN metadata
+- Open Library-enriched content recommendation model
+- OpenStreetMap Nominatim address geocoding
 - ZXing browser barcode scanner with rear-camera preference
 
 Database tables are defined in `db/schema.ts`; migrations live in `drizzle/`.

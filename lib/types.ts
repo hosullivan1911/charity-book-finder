@@ -7,7 +7,8 @@ export type Shop = {
   address: string;
   postcode: string;
   openingHours: string;
-  distance?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export type InventoryBook = {
@@ -35,4 +36,10 @@ export type BookMetadata = {
   coverUrl?: string;
   subjects: string[];
   format: string;
+};
+
+export type BookRecommendation = {
+  inventoryId: number;
+  reason: string;
+  score: number;
 };

@@ -20,6 +20,8 @@ export async function syncMasterShops(db: Database) {
         name: masterShop.name,
         address: masterShop.address,
         postcode: masterShop.postcode,
+        latitude: masterShop.latitude,
+        longitude: masterShop.longitude,
         openingHours: masterShop.openingHours,
         active: true,
       })
@@ -29,6 +31,8 @@ export async function syncMasterShops(db: Database) {
           name: masterShop.name,
           address: masterShop.address,
           postcode: masterShop.postcode,
+          latitude: masterShop.latitude,
+          longitude: masterShop.longitude,
           openingHours: masterShop.openingHours,
           active: true,
         },
