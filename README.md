@@ -139,7 +139,10 @@ The master list is deliberately isolated in [`config/shops.ts`](config/shops.ts)
 Edit that one file in GitHub to add, remove or rename shops, then commit the
 change. Each shop also needs `latitude` and `longitude` so distance filtering
 works. Vercel will redeploy the change automatically. Keep every `id` and
-`slug` unique; the stock API synchronises the configured shops into Neon.
+`slug` unique; the stock API synchronises the configured shops into Neon. On
+the first request, Giveleaf also creates its small trial schema automatically,
+so a newly connected Neon database is ready for the first real scan without
+loading sample inventory.
 
 ## Architecture
 

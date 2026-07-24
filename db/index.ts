@@ -1,10 +1,12 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
+import { ensureDatabaseSchema } from "./ensure-schema";
 
 export type Database = ReturnType<typeof createDatabase>;
 
 let database: Database | undefined;
+let databaseReady: Promise<void> | undefined;
 
 function createDatabase() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -22,5 +24,17 @@ function createDatabase() {
 
 export async function getDb() {
   database ??= createDatabase();
+  if (!databaseReady) {
+    const pending = ensureDatabaseSchema(database);
+    databaseReady = pending;
+    try {
+      await pending;
+    } catch (error) {
+      if (databaseReady === pending) databaseReady = undefined;
+      throw error;
+    }
+  } else {
+    await databaseReady;
+  }
   return database;
 }

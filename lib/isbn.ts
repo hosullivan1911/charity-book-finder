@@ -20,20 +20,6 @@ export async function lookupIsbn(isbnInput: string): Promise<BookMetadata> {
     throw new Error("Enter or scan a valid 13-digit ISBN.");
   }
 
-  const prototypeFixtures: Record<string, BookMetadata> = {
-    "9780571364909": {
-      isbn13,
-      title: "Klara and the Sun",
-      author: "Kazuo Ishiguro",
-      publisher: "Faber & Faber",
-      publishedYear: 2021,
-      coverUrl: "https://covers.openlibrary.org/b/isbn/9780571364909-L.jpg",
-      subjects: ["Fiction", "Literary"],
-      format: "Paperback",
-    },
-  };
-  if (prototypeFixtures[isbn13]) return prototypeFixtures[isbn13];
-
   const response = await fetch(
     `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn13}&jscmd=data&format=json`,
     {
@@ -55,22 +41,62 @@ export async function lookupIsbn(isbnInput: string): Promise<BookMetadata> {
     }
   >;
   const result = payload[`ISBN:${isbn13}`];
-  if (!result?.title) {
-    throw new Error("No book was found for that ISBN. Add it manually for now.");
+  if (result?.title) {
+    const yearMatch = result.publish_date?.match(/\b(18|19|20)\d{2}\b/);
+    return {
+      isbn13,
+      title: result.title,
+      author:
+        result.authors?.map((author) => author.name).join(", ") ||
+        "Unknown author",
+      publisher: result.publishers?.[0]?.name,
+      publishedYear: yearMatch ? Number(yearMatch[0]) : undefined,
+      coverUrl:
+        result.cover?.large ||
+        result.cover?.medium ||
+        `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg`,
+      subjects:
+        result.subjects?.slice(0, 6).map((subject) => subject.name) || [],
+      format: "Paperback",
+    };
   }
 
-  const yearMatch = result.publish_date?.match(/\b(18|19|20)\d{2}\b/);
+  const searchResponse = await fetch(
+    `https://openlibrary.org/search.json?isbn=${isbn13}&fields=title,author_name,publisher,first_publish_year,cover_i,subject&limit=1`,
+    {
+      headers: { "User-Agent": "Giveleaf/0.1 (charity-book-finder)" },
+      signal: AbortSignal.timeout(8000),
+    },
+  );
+  if (!searchResponse.ok) {
+    throw new Error("The book lookup service is temporarily unavailable.");
+  }
+
+  const searchPayload = (await searchResponse.json()) as {
+    docs?: Array<{
+      title?: string;
+      author_name?: string[];
+      publisher?: string[];
+      first_publish_year?: number;
+      cover_i?: number;
+      subject?: string[];
+    }>;
+  };
+  const searchResult = searchPayload.docs?.[0];
+  if (!searchResult?.title) {
+    throw new Error("No book was found for that ISBN.");
+  }
+
   return {
     isbn13,
-    title: result.title,
-    author: result.authors?.map((author) => author.name).join(", ") || "Unknown author",
-    publisher: result.publishers?.[0]?.name,
-    publishedYear: yearMatch ? Number(yearMatch[0]) : undefined,
-    coverUrl:
-      result.cover?.large ||
-      result.cover?.medium ||
-      `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg`,
-    subjects: result.subjects?.slice(0, 6).map((subject) => subject.name) || [],
+    title: searchResult.title,
+    author: searchResult.author_name?.join(", ") || "Unknown author",
+    publisher: searchResult.publisher?.[0],
+    publishedYear: searchResult.first_publish_year,
+    coverUrl: searchResult.cover_i
+      ? `https://covers.openlibrary.org/b/id/${searchResult.cover_i}-L.jpg`
+      : `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg`,
+    subjects: searchResult.subject?.slice(0, 6) || [],
     format: "Paperback",
   };
 }

@@ -24,7 +24,6 @@ type StockResult = {
   action: "added" | "removed";
   book: BookMetadata;
   inventoryId: number;
-  demo?: boolean;
 };
 
 function conditionLabel(condition: BookCondition) {
@@ -38,7 +37,7 @@ function conditionLabel(condition: BookCondition) {
 export function StaffScanner({ shop }: { shop: Shop }) {
   const [mode, setMode] = useState<StockMode>("add");
   const [isbn, setIsbn] = useState("");
-  const [location, setLocation] = useState("Fiction · I–K · Shelf 3");
+  const [location, setLocation] = useState("");
   const [condition, setCondition] = useState<BookCondition>("good");
   const [scanning, setScanning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -529,11 +528,6 @@ export function StaffScanner({ shop }: { shop: Shop }) {
             <button className="primary-action" type="button" onClick={scanNext}>
               <ScanIcon /> Scan the next book
             </button>
-            {result.demo && (
-              <p className="demo-note">
-                Inventory storage is unavailable, so this scan was not saved.
-              </p>
-            )}
           </div>
         ) : (
           <form onSubmit={submit}>
