@@ -1,8 +1,11 @@
-import { and, eq, gt, lt } from "drizzle-orm";
+import { count } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import {
+  OWNER_SETUP_CODE_SHA256,
+} from "../../../../config/launch";
 import { masterShops } from "../../../../config/shops";
 import { getDb } from "../../../../db";
-import { shopInvites, staffUsers } from "../../../../db/schema";
+import { staffUsers } from "../../../../db/schema";
 import { syncMasterShops } from "../../../../db/sync-master-shops";
 import { recordAuditEvent } from "../../../../lib/audit";
 import {
@@ -13,20 +16,20 @@ import {
 } from "../../../../lib/rate-limit";
 import {
   createStaffSession,
-  hashOpaqueToken,
   hashPassword,
   normaliseUsername,
+  secureHashMatches,
   SHOP_SESSION_COOKIE,
   SHOP_SESSION_MAX_AGE,
   validatePassword,
   validateUsername,
 } from "../../../../lib/shop-auth";
 
-type RegistrationPayload = {
+type SetupPayload = {
+  setupCode?: string;
   username?: string;
   password?: string;
   shopSlug?: string;
-  inviteCode?: string;
 };
 
 export async function POST(request: Request) {
@@ -34,10 +37,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
 
-  const payload = (await request.json()) as RegistrationPayload;
+  const payload = (await request.json()) as SetupPayload;
   const username = normaliseUsername(payload.username ?? "");
   const password = payload.password ?? "";
-  const inviteCode = payload.inviteCode?.trim().toUpperCase() ?? "";
+  const setupCode = payload.setupCode?.trim() ?? "";
   const usernameError = validateUsername(username);
   const passwordError = validatePassword(password);
   if (usernameError || passwordError) {
@@ -52,13 +55,13 @@ export async function POST(request: Request) {
   );
   if (!configuredShop) {
     return NextResponse.json(
-      { error: "Choose a participating shop." },
+      { error: "Choose the shop your owner account belongs to." },
       { status: 400 },
     );
   }
 
   const db = await getDb();
-  const rateLimitKey = authRateLimitKey(request, "register", username);
+  const rateLimitKey = authRateLimitKey(request, "owner-setup", username);
   const blockedMinutes = await checkAuthRateLimit(db, rateLimitKey);
   if (blockedMinutes) {
     return NextResponse.json(
@@ -67,81 +70,46 @@ export async function POST(request: Request) {
     );
   }
 
-  const [invite] = await db
-    .select()
-    .from(shopInvites)
-    .where(
-      and(
-        eq(shopInvites.codeHash, hashOpaqueToken(inviteCode)),
-        eq(shopInvites.active, true),
-        gt(shopInvites.expiresAt, new Date().toISOString()),
-        lt(shopInvites.useCount, shopInvites.maxUses),
-      ),
-    )
-    .limit(1);
-  if (!invite) {
-    await recordAuthFailure(db, rateLimitKey);
+  const [userCount] = await db.select({ total: count() }).from(staffUsers);
+  if (Number(userCount?.total ?? 0) > 0) {
     return NextResponse.json(
-      { error: "That invitation code is invalid, expired or already used." },
-      { status: 403 },
+      { error: "Owner setup is already complete. Sign in instead." },
+      { status: 409 },
     );
   }
-
-  const [existingUser] = await db
-    .select({ id: staffUsers.id })
-    .from(staffUsers)
-    .where(eq(staffUsers.username, username))
-    .limit(1);
-  if (existingUser) {
+  if (!secureHashMatches(setupCode, OWNER_SETUP_CODE_SHA256)) {
+    await recordAuthFailure(db, rateLimitKey);
     return NextResponse.json(
-      { error: "That username is already in use." },
-      { status: 409 },
+      { error: "The one-time owner setup code is incorrect." },
+      { status: 403 },
     );
   }
 
   const syncedShops = await syncMasterShops(db);
   const shop = syncedShops.find((item) => item.slug === configuredShop.slug);
-  if (!shop || shop.id !== invite.shopId) {
-    await recordAuthFailure(db, rateLimitKey);
+  if (!shop) {
     return NextResponse.json(
-      { error: "That invitation belongs to a different shop." },
-      { status: 403 },
+      { error: "The selected shop could not be prepared." },
+      { status: 503 },
     );
   }
 
-  let user: typeof staffUsers.$inferSelect;
-  try {
-    [user] = await db
-      .insert(staffUsers)
-      .values({
-        username,
-        passwordHash: await hashPassword(password),
-        shopId: shop.id,
-        role: invite.role,
-      })
-      .returning();
-  } catch {
-    return NextResponse.json(
-      { error: "That username is already in use." },
-      { status: 409 },
-    );
-  }
-
-  const nextUseCount = invite.useCount + 1;
-  await db
-    .update(shopInvites)
-    .set({
-      useCount: nextUseCount,
-      active: nextUseCount < invite.maxUses,
+  const [user] = await db
+    .insert(staffUsers)
+    .values({
+      username,
+      passwordHash: await hashPassword(password),
+      shopId: shop.id,
+      role: "admin",
+      active: true,
     })
-    .where(eq(shopInvites.id, invite.id));
+    .returning();
   await recordAuditEvent(db, {
     actor: user,
     shopId: shop.id,
-    action: "staff.registered",
+    action: "owner.bootstrapped",
     targetType: "staff_user",
     targetId: user.id,
-    details: { role: user.role, inviteId: invite.id },
   });
   await clearAuthRateLimit(db, rateLimitKey);
 

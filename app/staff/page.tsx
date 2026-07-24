@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getStaffSession, SHOP_SESSION_COOKIE } from "../../lib/shop-auth";
+import {
+  getStaffSession,
+  hasStaffUsers,
+  SHOP_SESSION_COOKIE,
+} from "../../lib/shop-auth";
 import { ShopLogin } from "../components/shop-login";
 import { SiteHeader } from "../components/site-header";
 import { StaffScanner } from "../components/staff-scanner";
@@ -17,6 +21,7 @@ export default async function StaffPage() {
   const session = await getStaffSession(
     cookieStore.get(SHOP_SESSION_COOKIE)?.value,
   ).catch(() => null);
+  const setupRequired = session ? false : !(await hasStaffUsers().catch(() => true));
 
   return (
     <main className="staff-page">
@@ -25,9 +30,10 @@ export default async function StaffPage() {
         <StaffScanner
           shop={session.configuredShop}
           username={session.user.username}
+          role={session.user.role}
         />
       ) : (
-        <ShopLogin />
+        <ShopLogin setupRequired={setupRequired} />
       )}
     </main>
   );

@@ -1,4 +1,10 @@
 import type { BookMetadata } from "./types";
+import { siteConfig } from "../config/site";
+
+const BOOK_LOOKUP_HEADERS = {
+  Accept: "application/json",
+  "User-Agent": `Giveleaf/1.0 (${siteConfig.supportEmail})`,
+};
 
 export function normaliseIsbn(value: string) {
   return value.replace(/[^0-9X]/gi, "").toUpperCase();
@@ -71,11 +77,15 @@ export async function lookupIsbn(isbnInput: string): Promise<BookMetadata> {
   const response = await fetch(
     `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn13}&jscmd=data&format=json`,
     {
-      headers: { "User-Agent": "Giveleaf/0.1 (charity-book-finder)" },
+      headers: BOOK_LOOKUP_HEADERS,
       signal: AbortSignal.timeout(8000),
     },
   );
-  if (!response.ok) throw new Error("The book lookup service is temporarily unavailable.");
+  if (!response.ok) {
+    const googleResult = await lookupGoogleBooks(isbn13).catch(() => null);
+    if (googleResult) return googleResult;
+    throw new Error("Book lookup services are temporarily unavailable.");
+  }
 
   const payload = (await response.json()) as Record<
     string,
@@ -113,12 +123,14 @@ export async function lookupIsbn(isbnInput: string): Promise<BookMetadata> {
   const searchResponse = await fetch(
     `https://openlibrary.org/search.json?isbn=${isbn13}&fields=title,author_name,publisher,first_publish_year,cover_i,subject&limit=1`,
     {
-      headers: { "User-Agent": "Giveleaf/0.1 (charity-book-finder)" },
+      headers: BOOK_LOOKUP_HEADERS,
       signal: AbortSignal.timeout(8000),
     },
   );
   if (!searchResponse.ok) {
-    throw new Error("The book lookup service is temporarily unavailable.");
+    const googleResult = await lookupGoogleBooks(isbn13).catch(() => null);
+    if (googleResult) return googleResult;
+    throw new Error("Book lookup services are temporarily unavailable.");
   }
 
   const searchPayload = (await searchResponse.json()) as {
@@ -133,7 +145,11 @@ export async function lookupIsbn(isbnInput: string): Promise<BookMetadata> {
   };
   const searchResult = searchPayload.docs?.[0];
   if (!searchResult?.title) {
-    throw new Error("No book was found for that ISBN.");
+    const googleResult = await lookupGoogleBooks(isbn13).catch(() => null);
+    if (googleResult) return googleResult;
+    throw new Error(
+      "No book was found for that ISBN. Check the number or ask a manager for help.",
+    );
   }
 
   return {
@@ -146,6 +162,57 @@ export async function lookupIsbn(isbnInput: string): Promise<BookMetadata> {
       ? `https://covers.openlibrary.org/b/id/${searchResult.cover_i}-L.jpg`
       : coverUrlForIsbn(isbn13),
     subjects: searchResult.subject?.slice(0, 6) || [],
+    format: "Paperback",
+  };
+}
+
+async function lookupGoogleBooks(isbn13: string): Promise<BookMetadata | null> {
+  const params = new URLSearchParams({
+    q: `isbn:${isbn13}`,
+    maxResults: "1",
+    printType: "books",
+  });
+  if (process.env.GOOGLE_BOOKS_API_KEY) {
+    params.set("key", process.env.GOOGLE_BOOKS_API_KEY);
+  }
+  const response = await fetch(
+    `https://www.googleapis.com/books/v1/volumes?${params.toString()}`,
+    {
+      headers: BOOK_LOOKUP_HEADERS,
+      signal: AbortSignal.timeout(8000),
+    },
+  );
+  if (!response.ok) return null;
+  const payload = (await response.json()) as {
+    items?: Array<{
+      volumeInfo?: {
+        title?: string;
+        authors?: string[];
+        publisher?: string;
+        publishedDate?: string;
+        categories?: string[];
+        imageLinks?: {
+          thumbnail?: string;
+          smallThumbnail?: string;
+        };
+      };
+    }>;
+  };
+  const info = payload.items?.[0]?.volumeInfo;
+  if (!info?.title) return null;
+  const year = info.publishedDate?.match(/\b(18|19|20)\d{2}\b/)?.[0];
+  const coverUrl = (
+    info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail
+  )?.replace(/^http:/, "https:");
+
+  return {
+    isbn13,
+    title: info.title,
+    author: info.authors?.join(", ") || "Unknown author",
+    publisher: info.publisher,
+    publishedYear: year ? Number(year) : undefined,
+    coverUrl: coverUrl || coverUrlForIsbn(isbn13),
+    subjects: info.categories?.slice(0, 6) || [],
     format: "Paperback",
   };
 }

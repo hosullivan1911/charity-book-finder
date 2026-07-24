@@ -1,7 +1,14 @@
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { books, inventory } from "../../../db/schema";
-import { lookupIsbn } from "../../../lib/isbn";
+import {
+  coverUrlForIsbn,
+  isValidIsbn13,
+  lookupIsbn,
+  normaliseIsbn,
+} from "../../../lib/isbn";
+import type { BookMetadata } from "../../../lib/types";
+import { recordAuditEvent } from "../../../lib/audit";
 import {
   getStaffSession,
   SHOP_SESSION_COOKIE,
@@ -9,6 +16,11 @@ import {
 
 type IntakePayload = {
   isbn?: string;
+  manual?: {
+    title?: string;
+    author?: string;
+    coverUrl?: string;
+  };
 };
 
 export async function POST(request: Request) {
@@ -38,7 +50,27 @@ export async function POST(request: Request) {
       );
     }
 
-    const metadata = await lookupIsbn(isbn);
+    let metadata: BookMetadata;
+    try {
+      metadata = await lookupIsbn(isbn);
+    } catch (lookupError) {
+      const isbn13 = normaliseIsbn(isbn);
+      const title = payload.manual?.title?.trim() ?? "";
+      const author = payload.manual?.author?.trim() ?? "";
+      const coverUrl = payload.manual?.coverUrl?.trim() ?? "";
+      if (!isValidIsbn13(isbn13) || !title || !author) throw lookupError;
+      if (coverUrl && !/^https:\/\//i.test(coverUrl)) {
+        throw new Error("The optional cover must use a full HTTPS URL.");
+      }
+      metadata = {
+        isbn13,
+        title,
+        author,
+        coverUrl: coverUrl || coverUrlForIsbn(isbn13),
+        subjects: [],
+        format: "Paperback",
+      };
+    }
 
     try {
       const { db, shop, user } = session;
@@ -88,6 +120,18 @@ export async function POST(request: Request) {
           scannedBy: user.username,
         })
         .returning();
+      await recordAuditEvent(db, {
+        actor: user,
+        shopId: shop.id,
+        action: "inventory.added",
+        targetType: "inventory",
+        targetId: stock.id,
+        details: {
+          bookId: book.id,
+          isbn13: book.isbn13,
+          title: book.title,
+        },
+      });
 
       return Response.json(
         { action: "added", book: metadata, inventoryId: stock.id, shop },

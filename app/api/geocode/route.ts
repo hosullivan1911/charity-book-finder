@@ -1,3 +1,5 @@
+import { siteConfig } from "../../../config/site";
+
 type NominatimResult = {
   display_name?: string;
   lat?: string;
@@ -27,7 +29,7 @@ export async function GET(request: Request) {
       {
         headers: {
           Accept: "application/json",
-          "User-Agent": "Giveleaf/0.1 (charity-book-finder)",
+          "User-Agent": `Giveleaf/1.0 (${siteConfig.supportEmail})`,
         },
         next: { revalidate: 86_400 },
         signal: AbortSignal.timeout(8_000),

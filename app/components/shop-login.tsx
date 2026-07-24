@@ -4,13 +4,17 @@ import { FormEvent, useState } from "react";
 import { masterShops } from "../../config/shops";
 import { ShopIcon } from "./icons";
 
-type AuthMode = "login" | "register";
+type AuthMode = "login" | "register" | "setup";
 
-export function ShopLogin() {
-  const [mode, setMode] = useState<AuthMode>("login");
+export function ShopLogin({ setupRequired = false }: { setupRequired?: boolean }) {
+  const [mode, setMode] = useState<AuthMode>(
+    setupRequired ? "setup" : "login",
+  );
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [shopSlug, setShopSlug] = useState(masterShops[0]?.slug ?? "");
+  const [inviteCode, setInviteCode] = useState("");
+  const [setupCode, setSetupCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -27,14 +31,20 @@ export function ShopLogin() {
 
     try {
       const response = await fetch(
-        mode === "login" ? "/api/auth/login" : "/api/auth/register",
+        mode === "login"
+          ? "/api/auth/login"
+          : mode === "setup"
+            ? "/api/auth/setup"
+            : "/api/auth/register",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             username,
             password,
-            ...(mode === "register" ? { shopSlug } : {}),
+            ...(mode !== "login" ? { shopSlug } : {}),
+            ...(mode === "register" ? { inviteCode } : {}),
+            ...(mode === "setup" ? { setupCode } : {}),
           }),
         },
       );
@@ -64,14 +74,23 @@ export function ShopLogin() {
       <section className="login-card">
         <span className="login-icon"><ShopIcon /></span>
         <p className="kicker">Giveleaf for shops</p>
-        <h1>{mode === "login" ? "Staff sign in" : "Create staff account"}</h1>
+        <h1>
+          {mode === "login"
+            ? "Staff sign in"
+            : mode === "setup"
+              ? "Set up Giveleaf"
+              : "Create staff account"}
+        </h1>
         <p className="login-intro">
           {mode === "login"
             ? "Use your personal staff account to manage your shop's live inventory."
-            : "Choose your shop once. Every book you add or remove will be linked to that shop."}
+            : mode === "setup"
+              ? "Create the first protected owner account after the launch reset."
+              : "Use the invitation from your shop manager. Every update stays linked to your assigned shop."}
         </p>
 
-        <div className="auth-switch" aria-label="Account options">
+        {!setupRequired && (
+          <div className="auth-switch" aria-label="Account options">
           <button
             className={mode === "login" ? "active" : ""}
             onClick={() => changeMode("login")}
@@ -86,7 +105,8 @@ export function ShopLogin() {
           >
             Create account
           </button>
-        </div>
+          </div>
+        )}
 
         <form onSubmit={submit}>
           <label className="form-field">
@@ -101,12 +121,12 @@ export function ShopLogin() {
               required
               value={username}
             />
-            {mode === "register" && (
+            {mode !== "login" && (
               <small>3–32 letters, numbers, dots, hyphens or underscores.</small>
             )}
           </label>
 
-          {mode === "register" && (
+          {mode !== "login" && (
             <label className="form-field">
               <span>Assigned shop</span>
               <select
@@ -120,7 +140,39 @@ export function ShopLogin() {
                   </option>
                 ))}
               </select>
-              <small>This shop will be permanently linked to your account.</small>
+              <small>Managers can reassign this later if needed.</small>
+            </label>
+          )}
+
+          {mode === "register" && (
+            <label className="form-field">
+              <span>Invitation code</span>
+              <input
+                autoCapitalize="characters"
+                autoComplete="one-time-code"
+                onChange={(event) =>
+                  setInviteCode(event.target.value.toUpperCase())
+                }
+                placeholder="GL-XXXXXXXXXXXX"
+                required
+                value={inviteCode}
+              />
+              <small>Ask your shop manager for a current invitation.</small>
+            </label>
+          )}
+
+          {mode === "setup" && (
+            <label className="form-field">
+              <span>One-time owner setup code</span>
+              <input
+                autoCapitalize="none"
+                autoComplete="one-time-code"
+                onChange={(event) => setSetupCode(event.target.value)}
+                required
+                type="password"
+                value={setupCode}
+              />
+              <small>This private code closes permanently after setup.</small>
             </label>
           )}
 
@@ -131,13 +183,13 @@ export function ShopLogin() {
                 mode === "login" ? "current-password" : "new-password"
               }
               maxLength={128}
-              minLength={mode === "register" ? 10 : undefined}
+              minLength={mode === "login" ? undefined : 10}
               onChange={(event) => setPassword(event.target.value)}
               required
               type="password"
               value={password}
             />
-            {mode === "register" && (
+            {mode !== "login" && (
               <small>Use at least 10 characters.</small>
             )}
           </label>
@@ -147,10 +199,14 @@ export function ShopLogin() {
             {submitting
               ? mode === "login"
                 ? "Signing in…"
-                : "Creating account…"
+                : mode === "setup"
+                  ? "Creating owner…"
+                  : "Creating account…"
               : mode === "login"
                 ? "Sign in"
-                : "Create account"}
+                : mode === "setup"
+                  ? "Create owner account"
+                  : "Create account"}
           </button>
         </form>
       </section>

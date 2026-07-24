@@ -36,7 +36,12 @@ export const staffUsers = pgTable(
     shopId: integer("shop_id")
       .notNull()
       .references(() => shops.id),
+    role: text("role").notNull().default("staff"),
+    active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { mode: "string", withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [index("staff_users_shop_idx").on(table.shopId)],
 );
@@ -59,6 +64,78 @@ export const staffSessions = pgTable(
     index("staff_sessions_expiry_idx").on(table.expiresAt),
   ],
 );
+
+export const shopInvites = pgTable(
+  "shop_invites",
+  {
+    id: serial("id").primaryKey(),
+    codeHash: text("code_hash").notNull().unique(),
+    shopId: integer("shop_id")
+      .notNull()
+      .references(() => shops.id),
+    role: text("role").notNull().default("staff"),
+    createdBy: integer("created_by").references(() => staffUsers.id, {
+      onDelete: "set null",
+    }),
+    expiresAt: timestamp("expires_at", {
+      mode: "string",
+      withTimezone: true,
+    }).notNull(),
+    maxUses: integer("max_uses").notNull().default(1),
+    useCount: integer("use_count").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("shop_invites_shop_idx").on(table.shopId),
+    index("shop_invites_expiry_idx").on(table.expiresAt),
+  ],
+);
+
+export const authRateLimits = pgTable("auth_rate_limits", {
+  key: text("key").primaryKey(),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  windowStartedAt: timestamp("window_started_at", {
+    mode: "string",
+    withTimezone: true,
+  }).notNull(),
+  blockedUntil: timestamp("blocked_until", {
+    mode: "string",
+    withTimezone: true,
+  }),
+  updatedAt: timestamp("updated_at", { mode: "string", withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: serial("id").primaryKey(),
+    actorUserId: integer("actor_user_id").references(() => staffUsers.id, {
+      onDelete: "set null",
+    }),
+    actorUsername: text("actor_username"),
+    shopId: integer("shop_id").references(() => shops.id),
+    action: text("action").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id"),
+    details: text("details").notNull().default("{}"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("audit_events_shop_idx").on(table.shopId),
+    index("audit_events_created_idx").on(table.createdAt),
+  ],
+);
+
+export const appState = pgTable("app_state", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { mode: "string", withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 export const books = pgTable(
   "books",
@@ -101,6 +178,11 @@ export const inventory = pgTable(
       .notNull()
       .defaultNow(),
     soldAt: timestamp("sold_at", { mode: "string", withTimezone: true }),
+    removedBy: text("removed_by"),
+    removalReason: text("removal_reason"),
+    updatedAt: timestamp("updated_at", { mode: "string", withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     index("inventory_shop_status_idx").on(table.shopId, table.status),
