@@ -27,5 +27,15 @@ export const masterShops: Shop[] = [
     openingHours: "Trial shop · By arrangement",
     latitude: -31.93310379968666,
     longitude: 115.83822478457111,
+  },
+    {
+    id: 3,
+    slug: "jacks-test-shop",
+    name: "Jack's Test Shop",
+    address: "North Perth, Western Australia",
+    postcode: "6006",
+    openingHours: "Trial shop · By arrangement",
+    latitude: -31.919166097316587,
+    longitude: 115.85335974845265,
   }
 ];
