@@ -14,6 +14,10 @@ export function isValidIsbn13(value: string) {
   return (10 - (total % 10)) % 10 === Number(isbn[12]);
 }
 
+export function coverUrlForIsbn(isbn13: string) {
+  return `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg`;
+}
+
 export async function lookupIsbn(isbnInput: string): Promise<BookMetadata> {
   const isbn13 = normaliseIsbn(isbnInput);
   if (!isValidIsbn13(isbn13)) {
@@ -52,9 +56,10 @@ export async function lookupIsbn(isbnInput: string): Promise<BookMetadata> {
       publisher: result.publishers?.[0]?.name,
       publishedYear: yearMatch ? Number(yearMatch[0]) : undefined,
       coverUrl:
-        result.cover?.large ||
-        result.cover?.medium ||
-        `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg`,
+        (result.cover?.large || result.cover?.medium)?.replace(
+          /^http:/,
+          "https:",
+        ) || coverUrlForIsbn(isbn13),
       subjects:
         result.subjects?.slice(0, 6).map((subject) => subject.name) || [],
       format: "Paperback",
@@ -95,7 +100,7 @@ export async function lookupIsbn(isbnInput: string): Promise<BookMetadata> {
     publishedYear: searchResult.first_publish_year,
     coverUrl: searchResult.cover_i
       ? `https://covers.openlibrary.org/b/id/${searchResult.cover_i}-L.jpg`
-      : `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg`,
+      : coverUrlForIsbn(isbn13),
     subjects: searchResult.subject?.slice(0, 6) || [],
     format: "Paperback",
   };

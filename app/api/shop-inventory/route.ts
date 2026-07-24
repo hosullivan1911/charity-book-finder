@@ -8,7 +8,8 @@ import {
   SHOP_SESSION_COOKIE,
   readShopSession,
 } from "../../../lib/shop-auth";
-import type { BookMetadata, InventoryBook } from "../../../lib/types";
+import { coverUrlForIsbn } from "../../../lib/isbn";
+import type { InventoryBook } from "../../../lib/types";
 
 type InventoryRow = {
   inventory: typeof inventory.$inferSelect;
@@ -17,7 +18,6 @@ type InventoryRow = {
 };
 
 type RemovalPayload = {
-  isbn?: string;
   inventoryId?: number;
 };
 
@@ -29,7 +29,7 @@ function mapInventoryRow(row: InventoryRow): InventoryBook {
     author: row.book.author,
     publisher: row.book.publisher,
     publishedYear: row.book.publishedYear,
-    coverUrl: row.book.coverUrl,
+    coverUrl: row.book.coverUrl || coverUrlForIsbn(row.book.isbn13),
     format: row.book.format,
     subjects: JSON.parse(row.book.subjects) as string[],
     shop: {
@@ -42,22 +42,7 @@ function mapInventoryRow(row: InventoryRow): InventoryBook {
       latitude: row.shop.latitude,
       longitude: row.shop.longitude,
     },
-    shelfLocation: row.inventory.shelfLocation,
-    condition: row.inventory.condition as InventoryBook["condition"],
     scannedAt: row.inventory.scannedAt,
-  };
-}
-
-function mapBook(row: typeof books.$inferSelect): BookMetadata {
-  return {
-    isbn13: row.isbn13,
-    title: row.title,
-    author: row.author,
-    publisher: row.publisher ?? undefined,
-    publishedYear: row.publishedYear ?? undefined,
-    coverUrl: row.coverUrl ?? undefined,
-    subjects: JSON.parse(row.subjects) as string[],
-    format: row.format,
   };
 }
 
@@ -128,13 +113,12 @@ export async function DELETE(request: Request) {
     }
 
     const payload = (await request.json()) as RemovalPayload;
-    const isbn = payload.isbn?.replace(/\D/g, "") ?? "";
     const inventoryId =
       typeof payload.inventoryId === "number" ? payload.inventoryId : null;
 
-    if (!inventoryId && isbn.length !== 13) {
+    if (!inventoryId) {
       return Response.json(
-        { error: "Scan a valid 13-digit ISBN or choose an inventory item." },
+        { error: "Choose a book from the inventory to remove." },
         { status: 400 },
       );
     }
@@ -142,9 +126,8 @@ export async function DELETE(request: Request) {
     const filters = [
       eq(inventory.shopId, context.shop.id),
       eq(inventory.status, "available"),
+      eq(inventory.id, inventoryId),
     ];
-    if (inventoryId) filters.push(eq(inventory.id, inventoryId));
-    if (isbn) filters.push(eq(books.isbn13, isbn));
 
     const [stock] = await context.db
       .select({ inventory, book: books, shop: shops })
@@ -158,9 +141,7 @@ export async function DELETE(request: Request) {
     if (!stock) {
       return Response.json(
         {
-          error: isbn
-            ? "No available copy of that ISBN is listed at this shop."
-            : "That book is no longer in this shop's available inventory.",
+          error: "That book is no longer in this shop's available inventory.",
         },
         { status: 404 },
       );
@@ -169,15 +150,13 @@ export async function DELETE(request: Request) {
     await context.db
       .update(inventory)
       .set({
-        status: "sold",
-        soldAt: new Date().toISOString(),
+        status: "removed",
       })
       .where(eq(inventory.id, stock.inventory.id));
 
     return Response.json({
       action: "removed",
       inventoryId: stock.inventory.id,
-      book: mapBook(stock.book),
     });
   } catch (error) {
     return Response.json(

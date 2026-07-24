@@ -10,35 +10,20 @@ import {
   useRef,
   useState,
 } from "react";
-import type {
-  BookCondition,
-  BookMetadata,
-  InventoryBook,
-  Shop,
-} from "../../lib/types";
+import type { BookMetadata, InventoryBook, Shop } from "../../lib/types";
 import { BookIcon, ScanIcon, SearchIcon, ShopIcon } from "./icons";
 
-type StockMode = "add" | "remove" | "inventory";
+type StockMode = "add" | "inventory";
 
 type StockResult = {
-  action: "added" | "removed";
+  action: "added";
   book: BookMetadata;
   inventoryId: number;
 };
 
-function conditionLabel(condition: BookCondition) {
-  return condition === "like_new"
-    ? "Like new"
-    : condition === "fair"
-      ? "Fair / worn"
-      : "Good";
-}
-
 export function StaffScanner({ shop }: { shop: Shop }) {
   const [mode, setMode] = useState<StockMode>("add");
   const [isbn, setIsbn] = useState("");
-  const [location, setLocation] = useState("");
-  const [condition, setCondition] = useState<BookCondition>("good");
   const [scanning, setScanning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -47,9 +32,6 @@ export function StaffScanner({ shop }: { shop: Shop }) {
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState("");
   const [inventoryQuery, setInventoryQuery] = useState("");
-  const [inventoryCondition, setInventoryCondition] = useState<
-    BookCondition | "all"
-  >("all");
   const [removingId, setRemovingId] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
@@ -120,42 +102,22 @@ export function StaffScanner({ shop }: { shop: Shop }) {
         setError("Enter the 13-digit ISBN printed above the barcode.");
         return;
       }
-      if (mode === "add" && !location.trim()) {
-        setError("Add a shelf location before scanning the book.");
-        return;
-      }
 
       setSubmitting(true);
       setError("");
       setResult(null);
 
       try {
-        const response =
-          mode === "remove"
-            ? await fetch("/api/shop-inventory", {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ isbn: cleanIsbn }),
-              })
-            : await fetch("/api/intake", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  isbn: cleanIsbn,
-                  shelfLocation: location,
-                  condition,
-                }),
-              });
+        const response = await fetch("/api/intake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isbn: cleanIsbn }),
+        });
         const data = (await response.json()) as StockResult & {
           error?: string;
         };
         if (!response.ok) {
-          throw new Error(
-            data.error ||
-              (mode === "remove"
-                ? "Could not remove this book."
-                : "Could not add this book."),
-          );
+          throw new Error(data.error || "Could not add this book.");
         }
         setResult(data);
         setIsbn("");
@@ -170,7 +132,7 @@ export function StaffScanner({ shop }: { shop: Shop }) {
         setSubmitting(false);
       }
     },
-    [condition, location, mode, refreshInventory],
+    [refreshInventory],
   );
 
   useEffect(() => {
@@ -228,14 +190,12 @@ export function StaffScanner({ shop }: { shop: Shop }) {
     const needle = inventoryQuery.trim().toLowerCase();
     return inventory.filter(
       (book) =>
-        (inventoryCondition === "all" ||
-          book.condition === inventoryCondition) &&
-        (!needle ||
-          `${book.title} ${book.author} ${book.isbn13} ${book.shelfLocation}`
-            .toLowerCase()
-            .includes(needle)),
+        !needle ||
+        `${book.title} ${book.author} ${book.isbn13}`
+          .toLowerCase()
+          .includes(needle),
     );
-  }, [inventory, inventoryCondition, inventoryQuery]);
+  }, [inventory, inventoryQuery]);
 
   function changeMode(nextMode: StockMode) {
     setMode(nextMode);
@@ -278,7 +238,7 @@ export function StaffScanner({ shop }: { shop: Shop }) {
       });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
-        throw new Error(data.error || "Could not mark this book as sold.");
+        throw new Error(data.error || "Could not remove this book.");
       }
       setInventory((current) =>
         current.filter((book) => book.inventoryId !== inventoryId),
@@ -287,7 +247,7 @@ export function StaffScanner({ shop }: { shop: Shop }) {
       setInventoryError(
         removeError instanceof Error
           ? removeError.message
-          : "Could not mark this book as sold.",
+          : "Could not remove this book.",
       );
     } finally {
       setRemovingId(null);
@@ -306,23 +266,21 @@ export function StaffScanner({ shop }: { shop: Shop }) {
     window.location.reload();
   }
 
-  const activeMode = mode === "inventory" ? "inventory" : mode;
-
   return (
     <div className="staff-shell inventory-shell">
       <aside className="staff-aside">
         <div>
           <p className="kicker">Giveleaf for shops</p>
-          <h1>One scan in. One scan out.</h1>
+          <h1>Scan in. Remove in one tap.</h1>
           <p>
-            Add books as they reach the shelf and remove them as they sell. Your
-            public catalogue stays current automatically.
+            Scan books into the live catalogue, then remove them directly from
+            inventory whenever they are no longer available.
           </p>
         </div>
 
         <nav className="stock-tabs" aria-label="Inventory actions">
           <button
-            className={activeMode === "add" ? "active" : ""}
+            className={mode === "add" ? "active" : ""}
             onClick={() => changeMode("add")}
             type="button"
           >
@@ -333,18 +291,7 @@ export function StaffScanner({ shop }: { shop: Shop }) {
             </div>
           </button>
           <button
-            className={activeMode === "remove" ? "active" : ""}
-            onClick={() => changeMode("remove")}
-            type="button"
-          >
-            <span>−</span>
-            <div>
-              <strong>Stock out</strong>
-              <small>Remove a sold book</small>
-            </div>
-          </button>
-          <button
-            className={activeMode === "inventory" ? "active" : ""}
+            className={mode === "inventory" ? "active" : ""}
             onClick={() => changeMode("inventory")}
             type="button"
           >
@@ -369,18 +316,10 @@ export function StaffScanner({ shop }: { shop: Shop }) {
         <div className="intake-heading">
           <div>
             <p className="kicker">
-              {mode === "add"
-                ? "Stock in"
-                : mode === "remove"
-                  ? "Stock out"
-                  : "Current stock"}
+              {mode === "add" ? "Stock in" : "Current stock"}
             </p>
             <h2>
-              {mode === "add"
-                ? "Add a book"
-                : mode === "remove"
-                  ? "Remove a sold book"
-                  : "Shop inventory"}
+              {mode === "add" ? "Add a book" : "Shop inventory"}
             </h2>
           </div>
           <div className="shop-session">
@@ -401,29 +340,13 @@ export function StaffScanner({ shop }: { shop: Shop }) {
               <label className="inventory-search">
                 <SearchIcon />
                 <span className="sr-only">
-                  Filter by title, author, ISBN or shelf
+                  Filter by title, author or ISBN
                 </span>
                 <input
                   onChange={(event) => setInventoryQuery(event.target.value)}
-                  placeholder="Title, author, ISBN or shelf"
+                  placeholder="Title, author or ISBN"
                   value={inventoryQuery}
                 />
-              </label>
-              <label>
-                <span className="sr-only">Filter by condition</span>
-                <select
-                  onChange={(event) =>
-                    setInventoryCondition(
-                      event.target.value as BookCondition | "all",
-                    )
-                  }
-                  value={inventoryCondition}
-                >
-                  <option value="all">All conditions</option>
-                  <option value="like_new">Like new</option>
-                  <option value="good">Good</option>
-                  <option value="fair">Fair / worn</option>
-                </select>
               </label>
             </div>
 
@@ -445,26 +368,23 @@ export function StaffScanner({ shop }: { shop: Shop }) {
                       onError={(event) => {
                         event.currentTarget.src = "/book-placeholder.svg";
                       }}
-                      src={book.coverUrl || "/book-placeholder.svg"}
+                      src={book.coverUrl}
                     />
                     <div className="inventory-book-copy">
                       <h3>{book.title}</h3>
                       <p>{book.author}</p>
                       <small>{book.isbn13}</small>
                     </div>
-                    <div className="inventory-location">
-                      <strong>{book.shelfLocation}</strong>
-                      <small>{conditionLabel(book.condition)}</small>
-                    </div>
                     <button
-                      className="sold-button"
+                      className="remove-book-button"
                       disabled={removingId === book.inventoryId}
                       onClick={() => removeInventoryItem(book.inventoryId)}
+                      aria-label={`Remove ${book.title} from inventory`}
                       type="button"
                     >
                       {removingId === book.inventoryId
                         ? "Removing…"
-                        : "Mark sold"}
+                        : "Remove"}
                     </button>
                   </article>
                 ))}
@@ -483,45 +403,23 @@ export function StaffScanner({ shop }: { shop: Shop }) {
           </div>
         ) : result ? (
           <div className="result-view compact-result">
-            <div
-              className={
-                result.action === "added"
-                  ? "success-mark"
-                  : "success-mark removed"
-              }
-            >
-              {result.action === "added" ? "✓" : "−"}
-            </div>
-            <p className="kicker">
-              {result.action === "added" ? "Added to inventory" : "Removed"}
-            </p>
+            <div className="success-mark">✓</div>
+            <p className="kicker">Added to inventory</p>
             <h2>{result.book.title}</h2>
             <p className="result-author">{result.book.author}</p>
 
             <div className="result-book stock-result-book">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={result.book.coverUrl || "/book-placeholder.svg"}
+                src={result.book.coverUrl}
                 alt=""
                 onError={(event) => {
                   event.currentTarget.src = "/book-placeholder.svg";
                 }}
               />
               <div className="stock-result-copy">
-                <span>
-                  {result.action === "added"
-                    ? "Now visible to book hunters"
-                    : "No longer shown in the catalogue"}
-                </span>
-                {result.action === "added" && (
-                  <>
-                    <strong>{location}</strong>
-                    <small>{conditionLabel(condition)}</small>
-                  </>
-                )}
-                {result.action === "removed" && (
-                  <strong>Marked as sold</strong>
-                )}
+                <span>Now visible to book hunters</span>
+                <strong>Cover included automatically</strong>
               </div>
             </div>
 
@@ -532,23 +430,15 @@ export function StaffScanner({ shop }: { shop: Shop }) {
         ) : (
           <form onSubmit={submit}>
             <button
-              className={
-                mode === "remove"
-                  ? "camera-button remove-camera-button"
-                  : "camera-button"
-              }
+              className="camera-button"
               disabled={submitting}
               type="button"
               onClick={startScanner}
             >
               <span><ScanIcon /></span>
-              <strong>
-                {mode === "add" ? "Scan book in" : "Scan sold book out"}
-              </strong>
+              <strong>Scan book in</strong>
               <small>
-                {mode === "add"
-                  ? "The book is added as soon as its barcode is read"
-                  : "One available copy is removed as soon as its barcode is read"}
+                The book and its cover are added as soon as the barcode is read
               </small>
             </button>
 
@@ -570,55 +460,16 @@ export function StaffScanner({ shop }: { shop: Shop }) {
               <small>The 13 digits printed above the barcode</small>
             </label>
 
-            {mode === "add" && (
-              <>
-                <div className="form-row">
-                  <label className="form-field">
-                    <span>Condition</span>
-                    <select
-                      value={condition}
-                      onChange={(event) =>
-                        setCondition(event.target.value as BookCondition)
-                      }
-                    >
-                      <option value="like_new">Like new</option>
-                      <option value="good">Good</option>
-                      <option value="fair">Fair / worn</option>
-                    </select>
-                  </label>
-                </div>
-
-                <label className="form-field">
-                  <span>Shelf location</span>
-                  <input
-                    value={location}
-                    onChange={(event) => setLocation(event.target.value)}
-                    placeholder="e.g. Fiction · A–D · Shelf 2"
-                    required
-                  />
-                  <small>
-                    Use wording a customer or new volunteer can follow.
-                  </small>
-                </label>
-              </>
-            )}
-
             {error && <p className="form-error" role="alert">{error}</p>}
 
             <button
-              className={
-                mode === "remove"
-                  ? "primary-action remove-action"
-                  : "primary-action"
-              }
+              className="primary-action"
               type="submit"
               disabled={submitting}
             >
               {submitting
                 ? "Updating inventory…"
-                : mode === "add"
-                  ? "Add to inventory"
-                  : "Remove from inventory"}
+                : "Add to inventory"}
             </button>
           </form>
         )}
@@ -634,9 +485,7 @@ export function StaffScanner({ shop }: { shop: Shop }) {
           <div className="scanner-panel">
             <div className="scanner-top">
               <div>
-                <p className="kicker">
-                  {mode === "add" ? "Stock in" : "Stock out"}
-                </p>
+                <p className="kicker">Stock in</p>
                 <h2>Centre the ISBN barcode</h2>
               </div>
               <button
