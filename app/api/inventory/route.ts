@@ -1,4 +1,5 @@
-import { and, desc, eq, like, or } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or } from "drizzle-orm";
+import { masterShops } from "../../../config/shops";
 import { getDb } from "../../../db";
 import { books, inventory, shops } from "../../../db/schema";
 import type { InventoryBook } from "../../../lib/types";
@@ -44,6 +45,10 @@ export async function GET(request: Request) {
     const filters = [
       eq(inventory.status, "available"),
       eq(shops.active, true),
+      inArray(
+        shops.slug,
+        masterShops.map((configuredShop) => configuredShop.slug),
+      ),
     ];
     if (query) {
       const match = `%${query}%`;

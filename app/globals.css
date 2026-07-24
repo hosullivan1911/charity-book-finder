@@ -1438,13 +1438,6 @@ footer p {
   font-size: 13px;
 }
 
-.demo-note {
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.5;
-  margin-top: 14px;
-}
-
 .stock-card {
   min-width: 0;
 }
