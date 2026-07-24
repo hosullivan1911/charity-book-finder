@@ -5,7 +5,7 @@ import {
   getStaffSession,
   SHOP_SESSION_COOKIE,
 } from "../../../lib/shop-auth";
-import { coverUrlForIsbn } from "../../../lib/isbn";
+import { coverUrlForBook } from "../../../lib/isbn";
 import type { InventoryBook } from "../../../lib/types";
 
 type InventoryRow = {
@@ -26,7 +26,7 @@ function mapInventoryRow(row: InventoryRow): InventoryBook {
     author: row.book.author,
     publisher: row.book.publisher,
     publishedYear: row.book.publishedYear,
-    coverUrl: row.book.coverUrl || coverUrlForIsbn(row.book.isbn13),
+    coverUrl: coverUrlForBook(row.book.isbn13, row.book.coverUrl),
     format: row.book.format,
     subjects: JSON.parse(row.book.subjects) as string[],
     shop: {

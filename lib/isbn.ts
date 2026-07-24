@@ -14,8 +14,52 @@ export function isValidIsbn13(value: string) {
   return (10 - (total % 10)) % 10 === Number(isbn[12]);
 }
 
+export function isbn10ForIsbn13(value: string) {
+  const isbn13 = normaliseIsbn(value);
+  if (!isValidIsbn13(isbn13) || !isbn13.startsWith("978")) return null;
+
+  const body = isbn13.slice(3, 12);
+  const weightedTotal = body
+    .split("")
+    .reduce(
+      (sum, digit, index) => sum + Number(digit) * (10 - index),
+      0,
+    );
+  const checkValue = (11 - (weightedTotal % 11)) % 11;
+
+  return `${body}${checkValue === 10 ? "X" : checkValue}`;
+}
+
 export function coverUrlForIsbn(isbn13: string) {
-  return `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg`;
+  const coverIsbn = isbn10ForIsbn13(isbn13) || normaliseIsbn(isbn13);
+  return `https://covers.openlibrary.org/b/isbn/${coverIsbn}-L.jpg?default=false`;
+}
+
+export function coverUrlForBook(
+  isbn13: string,
+  storedCoverUrl?: string | null,
+) {
+  const secureCoverUrl = storedCoverUrl?.replace(/^http:/, "https:");
+  if (!secureCoverUrl) return coverUrlForIsbn(isbn13);
+
+  try {
+    const parsedCoverUrl = new URL(secureCoverUrl);
+    const oldIsbnPath = `/b/isbn/${normaliseIsbn(isbn13)}-L.jpg`;
+
+    // Earlier scans stored this Open Library ISBN-13 fallback even when the
+    // real cover was indexed only under the equivalent ISBN-10. Upgrade those
+    // URLs as inventory is read, without requiring a database migration.
+    if (
+      parsedCoverUrl.hostname === "covers.openlibrary.org" &&
+      parsedCoverUrl.pathname === oldIsbnPath
+    ) {
+      return coverUrlForIsbn(isbn13);
+    }
+  } catch {
+    return coverUrlForIsbn(isbn13);
+  }
+
+  return secureCoverUrl;
 }
 
 export async function lookupIsbn(isbnInput: string): Promise<BookMetadata> {
