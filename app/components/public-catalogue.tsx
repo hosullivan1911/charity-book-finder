@@ -559,6 +559,19 @@ export function PublicCatalogue() {
         </div>
       </section>
 
+      <section className="mission-section" aria-labelledby="mission-heading">
+        <p className="kicker">Our mission</p>
+        <div>
+          <h2 id="mission-heading">
+            Make every donated book easier to find.
+          </h2>
+          <p>
+            Giveleaf helps more people access affordable reading, support local
+            charities and keep good books in circulation.
+          </p>
+        </div>
+      </section>
+
       <footer>
         <div className="brand footer-brand">
           <span className="brand-mark" aria-hidden="true"><span /></span>

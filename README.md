@@ -17,6 +17,12 @@ seconds.
 Giveleaf does not set or display book prices. Each participating charity shop
 remains responsible for its own pricing.
 
+## Mission
+
+Giveleaf exists to make every donated book easier to find, helping more people
+access affordable reading, support local charities and keep good books in
+circulation.
+
 ## Customer discovery
 
 Customers can:
