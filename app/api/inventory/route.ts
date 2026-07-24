@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, like, or } from "drizzle-orm";
 import { masterShops } from "../../../config/shops";
 import { getDb } from "../../../db";
 import { books, inventory, shops } from "../../../db/schema";
-import { coverUrlForIsbn } from "../../../lib/isbn";
+import { coverUrlForBook } from "../../../lib/isbn";
 import type { InventoryBook } from "../../../lib/types";
 
 function mapRow(row: {
@@ -17,7 +17,7 @@ function mapRow(row: {
     author: row.book.author,
     publisher: row.book.publisher,
     publishedYear: row.book.publishedYear,
-    coverUrl: row.book.coverUrl || coverUrlForIsbn(row.book.isbn13),
+    coverUrl: coverUrlForBook(row.book.isbn13, row.book.coverUrl),
     format: row.book.format,
     subjects: JSON.parse(row.book.subjects) as string[],
     shop: {
