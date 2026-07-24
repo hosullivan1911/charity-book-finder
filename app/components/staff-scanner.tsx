@@ -21,7 +21,13 @@ type StockResult = {
   inventoryId: number;
 };
 
-export function StaffScanner({ shop }: { shop: Shop }) {
+export function StaffScanner({
+  shop,
+  username,
+}: {
+  shop: Shop;
+  username: string;
+}) {
   const [mode, setMode] = useState<StockMode>("add");
   const [isbn, setIsbn] = useState("");
   const [scanning, setScanning] = useState(false);
@@ -306,8 +312,8 @@ export function StaffScanner({ shop }: { shop: Shop }) {
         <div className="aside-tip">
           <ShopIcon />
           <p>
-            <strong>{shop.name}</strong> Every update is applied only to this
-            shop&apos;s inventory.
+            <strong>{shop.name}</strong> Signed in as {username}. Every update
+            is applied only to this shop&apos;s inventory.
           </p>
         </div>
       </aside>
@@ -323,7 +329,9 @@ export function StaffScanner({ shop }: { shop: Shop }) {
             </h2>
           </div>
           <div className="shop-session">
-            <span className="shop-badge"><ShopIcon /> {shop.name}</span>
+            <span className="shop-badge">
+              <ShopIcon /> {username} · {shop.name}
+            </span>
             <button
               className="sign-out-button"
               onClick={signOut}

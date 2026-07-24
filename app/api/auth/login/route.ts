@@ -1,51 +1,50 @@
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { masterShops } from "../../../../config/shops";
+import { getDb } from "../../../../db";
+import { staffUsers } from "../../../../db/schema";
 import {
-  createShopSession,
+  createStaffSession,
+  normaliseUsername,
+  passwordMatches,
   SHOP_SESSION_COOKIE,
   SHOP_SESSION_MAX_AGE,
-  shopCredentialsMatch,
-  shopLoginIsConfigured,
 } from "../../../../lib/shop-auth";
 
 type LoginPayload = {
-  email?: string;
+  username?: string;
   password?: string;
 };
 
 export async function POST(request: Request) {
-  if (!shopLoginIsConfigured()) {
-    return NextResponse.json(
-      { error: "Shop login has not been configured in Vercel yet." },
-      { status: 503 },
-    );
+  if (process.env.SITE_MODE === "catalogue") {
+    return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
 
   const payload = (await request.json()) as LoginPayload;
-  if (
-    !payload.email ||
-    !payload.password ||
-    !shopCredentialsMatch(payload.email, payload.password)
-  ) {
+  const username = normaliseUsername(payload.username ?? "");
+  const password = payload.password ?? "";
+  const db = await getDb();
+  const [user] = await db
+    .select()
+    .from(staffUsers)
+    .where(eq(staffUsers.username, username))
+    .limit(1);
+
+  if (!user || !(await passwordMatches(password, user.passwordHash))) {
     return NextResponse.json(
-      { error: "Email or password is incorrect." },
+      { error: "Username or password is incorrect." },
       { status: 401 },
     );
   }
 
-  const shopSlug = process.env.SHOP_SLUG ?? masterShops[0]?.slug;
-  const shop = masterShops.find((item) => item.slug === shopSlug);
-  if (!shop) {
-    return NextResponse.json(
-      { error: "The login is not linked to a configured shop." },
-      { status: 503 },
-    );
-  }
-
-  const response = NextResponse.json({ authenticated: true, shop });
+  const token = await createStaffSession(user.id);
+  const response = NextResponse.json({
+    authenticated: true,
+    username: user.username,
+  });
   response.cookies.set({
     name: SHOP_SESSION_COOKIE,
-    value: createShopSession(shop.slug),
+    value: token,
     httpOnly: true,
     maxAge: SHOP_SESSION_MAX_AGE,
     path: "/",

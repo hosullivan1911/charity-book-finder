@@ -1,11 +1,11 @@
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
-import { masterShops } from "../../../config/shops";
-import { getDb } from "../../../db";
 import { books, inventory } from "../../../db/schema";
-import { syncMasterShops } from "../../../db/sync-master-shops";
 import { lookupIsbn } from "../../../lib/isbn";
-import { SHOP_SESSION_COOKIE, readShopSession } from "../../../lib/shop-auth";
+import {
+  getStaffSession,
+  SHOP_SESSION_COOKIE,
+} from "../../../lib/shop-auth";
 
 type IntakePayload = {
   isbn?: string;
@@ -18,11 +18,10 @@ export async function POST(request: Request) {
     }
 
     const cookieStore = await cookies();
-    const session = readShopSession(cookieStore.get(SHOP_SESSION_COOKIE)?.value);
-    const masterShop = masterShops.find(
-      (shop) => shop.slug === session?.shopSlug,
+    const session = await getStaffSession(
+      cookieStore.get(SHOP_SESSION_COOKIE)?.value,
     );
-    if (!masterShop) {
+    if (!session) {
       return Response.json(
         { error: "Sign in to an approved shop before scanning books." },
         { status: 401 },
@@ -42,12 +41,7 @@ export async function POST(request: Request) {
     const metadata = await lookupIsbn(isbn);
 
     try {
-      const db = await getDb();
-      const syncedShops = await syncMasterShops(db);
-      const shop = syncedShops.find((item) => item.slug === masterShop.slug);
-      if (!shop) {
-        return Response.json({ error: "That shop could not be found." }, { status: 404 });
-      }
+      const { db, shop, user } = session;
 
       await db
         .insert(books)
@@ -91,6 +85,7 @@ export async function POST(request: Request) {
           pricePence: 0,
           valuationConfidence: "not_used",
           valuationReasons: "[]",
+          scannedBy: user.username,
         })
         .returning();
 

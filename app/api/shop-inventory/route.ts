@@ -1,12 +1,9 @@
 import { and, desc, eq } from "drizzle-orm";
 import { cookies } from "next/headers";
-import { masterShops } from "../../../config/shops";
-import { getDb } from "../../../db";
 import { books, inventory, shops } from "../../../db/schema";
-import { syncMasterShops } from "../../../db/sync-master-shops";
 import {
+  getStaffSession,
   SHOP_SESSION_COOKIE,
-  readShopSession,
 } from "../../../lib/shop-auth";
 import { coverUrlForIsbn } from "../../../lib/isbn";
 import type { InventoryBook } from "../../../lib/types";
@@ -46,27 +43,18 @@ function mapInventoryRow(row: InventoryRow): InventoryBook {
   };
 }
 
-async function getAuthenticatedShop() {
+async function getAuthenticatedStaff() {
   if (process.env.SITE_MODE === "catalogue") return null;
 
   const cookieStore = await cookies();
-  const session = readShopSession(
+  return getStaffSession(
     cookieStore.get(SHOP_SESSION_COOKIE)?.value,
   );
-  const masterShop = masterShops.find(
-    (shop) => shop.slug === session?.shopSlug,
-  );
-  if (!masterShop) return null;
-
-  const db = await getDb();
-  const syncedShops = await syncMasterShops(db);
-  const shop = syncedShops.find((item) => item.slug === masterShop.slug);
-  return shop ? { db, shop } : null;
 }
 
 export async function GET() {
   try {
-    const context = await getAuthenticatedShop();
+    const context = await getAuthenticatedStaff();
     if (!context) {
       return Response.json(
         { error: "Sign in to view this shop's inventory." },
@@ -104,7 +92,7 @@ export async function GET() {
 
 export async function DELETE(request: Request) {
   try {
-    const context = await getAuthenticatedShop();
+    const context = await getAuthenticatedStaff();
     if (!context) {
       return Response.json(
         { error: "Sign in before removing books." },
