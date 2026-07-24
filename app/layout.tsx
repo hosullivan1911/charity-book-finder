@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Spine — live local book inventory",
-    template: "%s · Spine",
+    default: "Giveleaf — find books in charity shops",
+    template: "%s · Giveleaf",
   },
   description:
     "Search live book inventory across participating charity shops.",

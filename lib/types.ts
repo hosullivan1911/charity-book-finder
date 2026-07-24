@@ -7,7 +7,8 @@ export type Shop = {
   address: string;
   postcode: string;
   openingHours: string;
-  distance?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export type InventoryBook = {
@@ -23,9 +24,6 @@ export type InventoryBook = {
   shop: Shop;
   shelfLocation: string;
   condition: BookCondition;
-  pricePence: number;
-  valuationConfidence: "high" | "medium" | "low";
-  valuationReasons: string[];
   scannedAt: string;
 };
 
@@ -40,9 +38,8 @@ export type BookMetadata = {
   format: string;
 };
 
-export type Valuation = {
-  pricePence: number;
-  confidence: "high" | "medium" | "low";
-  reasons: string[];
-  manualReview: boolean;
+export type BookRecommendation = {
+  inventoryId: number;
+  reason: string;
+  score: number;
 };

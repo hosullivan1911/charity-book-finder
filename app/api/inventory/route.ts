@@ -1,7 +1,6 @@
 import { and, desc, eq, like, or } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { books, inventory, shops } from "../../../db/schema";
-import { demoInventory } from "../../../lib/demo-data";
 import type { InventoryBook } from "../../../lib/types";
 
 function mapRow(row: {
@@ -26,13 +25,11 @@ function mapRow(row: {
       address: row.shop.address,
       postcode: row.shop.postcode,
       openingHours: row.shop.openingHours,
+      latitude: row.shop.latitude,
+      longitude: row.shop.longitude,
     },
     shelfLocation: row.inventory.shelfLocation,
     condition: row.inventory.condition as InventoryBook["condition"],
-    pricePence: row.inventory.pricePence,
-    valuationConfidence:
-      row.inventory.valuationConfidence as InventoryBook["valuationConfidence"],
-    valuationReasons: JSON.parse(row.inventory.valuationReasons) as string[],
     scannedAt: row.inventory.scannedAt,
   };
 }
@@ -67,15 +64,13 @@ export async function GET(request: Request) {
 
     return Response.json({ inventory: rows.map(mapRow), source: "database" });
   } catch {
-    const normalised = query.toLowerCase();
-    const filtered = demoInventory.filter(
-      (item) =>
-        (!shopSlug || item.shop.slug === shopSlug) &&
-        (!normalised ||
-          `${item.title} ${item.author} ${item.isbn13}`
-            .toLowerCase()
-            .includes(normalised)),
+    return Response.json(
+      {
+        inventory: [],
+        source: "unavailable",
+        error: "Live inventory is temporarily unavailable.",
+      },
+      { status: 503 },
     );
-    return Response.json({ inventory: filtered, source: "demo" });
   }
 }

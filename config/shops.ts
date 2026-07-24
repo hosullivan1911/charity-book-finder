@@ -15,6 +15,7 @@ export const masterShops: Shop[] = [
     address: "Perth, Western Australia",
     postcode: "6000",
     openingHours: "Trial shop · By arrangement",
-    distance: "Test location",
+    latitude: -31.9523,
+    longitude: 115.8613,
   },
 ];

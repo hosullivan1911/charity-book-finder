@@ -1,16 +1,61 @@
-# Spine — live charity-shop book inventory
+# Giveleaf — find books in charity shops
 
-Spine is a mobile-first charity-shop book catalogue with two experiences:
+Giveleaf is a mobile-first charity-shop book finder with two connected
+experiences:
 
-1. Customers search participating shops by title, author or ISBN and see the
-   price and exact shelf location.
-2. Volunteers scan a book's ISBN, record its condition and location, receive a
-   suggested charity-shop price, and add it to live stock.
+1. Customers enter an Australian address and travel distance, then search
+   nearby participating shops by title, author or ISBN and see the condition
+   and exact shelf location.
+2. Volunteers scan donated books into stock, scan sold books out, and search or
+   filter their shop's current inventory.
 
 The application is a standard Next.js project designed to run as two Vercel
 sites from one repository. The public catalogue and protected shop scanner use
-the same Neon Postgres database, so newly scanned stock appears publicly within
-15 seconds.
+the same Neon Postgres database, so stock changes appear publicly within 15
+seconds.
+
+Giveleaf does not set or display book prices. Each participating charity shop
+remains responsible for its own pricing.
+
+## Mission
+
+Giveleaf exists to make every donated book easier to find, helping more people
+access affordable reading, support local charities and keep good books in
+circulation.
+
+## Customer discovery
+
+Customers can:
+
+- enter an Australian address, suburb or postcode and choose a 5, 10, 25, 50
+  or 100 km search radius;
+- see only participating shops and live inventory inside that area;
+- search by title, author, ISBN or subject;
+- receive intelligent alternatives when the exact book is unavailable.
+
+The recommendation model looks up the requested book's author, subjects and
+publication profile through Open Library, then ranks only books that are
+currently in stock inside the selected area. It never recommends an invented or
+unavailable title. If metadata enrichment is temporarily offline, Giveleaf
+falls back to query-token similarity.
+
+Address searches are sent to the OpenStreetMap Nominatim geocoder and are not
+stored by Giveleaf.
+
+## Shop workflow
+
+After signing in, volunteers have three options:
+
+- **Stock in** — select the shelf location and condition, then scan the ISBN.
+  The book is identified and immediately added to live inventory.
+- **Stock out** — scan the ISBN of a sold book. One available copy at that shop
+  is marked as sold and disappears from both the shop inventory and public
+  catalogue.
+- **Inventory** — search by title, author, ISBN or shelf, filter by condition,
+  and manually mark an item as sold when needed.
+
+If a shop has multiple copies of the same ISBN, each stock-out scan removes one
+copy.
 
 ## Deploy the two Vercel sites
 
@@ -19,8 +64,8 @@ framework and root-directory settings at their detected Next.js defaults.
 
 | Vercel project | Purpose | Required `SITE_MODE` |
 | --- | --- | --- |
-| Spine catalogue | Public book search | `catalogue` |
-| Spine intake | Volunteer scanning | `scanner` |
+| Giveleaf catalogue | Public book search | `catalogue` |
+| Giveleaf for shops | Volunteer stock management | `scanner` |
 
 In the catalogue project, open **Storage → Create Database**, choose Neon,
 select **Sydney, Australia (Southeast)**, and connect it. Connect that same Neon
@@ -44,7 +89,7 @@ SITE_MODE=catalogue
 DATABASE_URL=<the same Neon connection string>
 ```
 
-Apply the database migration once from either linked project:
+Apply the existing database migrations once from either linked project:
 
 ```bash
 git clone https://github.com/hosullivan1911/charity-book-finder.git
@@ -54,6 +99,9 @@ npx vercel link
 npx vercel env pull .env.local
 npm run db:migrate
 ```
+
+No new migration is required when upgrading an existing Spine deployment to
+Giveleaf.
 
 Redeploy both projects after adding their environment variables. Future pushes
 to `main` deploy both sites automatically.
@@ -72,9 +120,7 @@ npm install
 npm run dev
 ```
 
-Replace the example `DATABASE_URL` with a real Neon connection string. Without
-one, the public catalogue remains usable with demo data and scans are valued
-without being permanently stored.
+Replace the example `DATABASE_URL` with a real Neon connection string.
 
 ## Useful commands
 
@@ -91,16 +137,9 @@ npm run db:studio    # inspect the connected database
 
 The master list is deliberately isolated in [`config/shops.ts`](config/shops.ts).
 Edit that one file in GitHub to add, remove or rename shops, then commit the
-change. Vercel will redeploy it automatically. Keep every `id` and `slug`
-unique; the intake API synchronises the configured shops into Neon.
-
-## Valuation model
-
-The MVP recommends normal charity-shop shelf prices, not collector-market
-values. It starts with an A$2.50 paperback or A$3.50 hardback baseline, adjusts
-for condition, recency and subject demand, rounds to 50 cents, and caps prices
-at A$1–A$8.
-Potentially collectible books are flagged for a manual check.
+change. Each shop also needs `latitude` and `longitude` so distance filtering
+works. Vercel will redeploy the change automatically. Keep every `id` and
+`slug` unique; the stock API synchronises the configured shops into Neon.
 
 ## Architecture
 
@@ -108,12 +147,16 @@ Potentially collectible books are flagged for a manual check.
 - Vercel hosting and server functions
 - Neon Postgres via Drizzle ORM
 - Open Library ISBN metadata
+- Open Library-enriched content recommendation model
+- OpenStreetMap Nominatim address geocoding
 - ZXing browser barcode scanner with rear-camera preference
 
 Database tables are defined in `db/schema.ts`; migrations live in `drizzle/`.
+The original pricing columns remain unused in the first database schema solely
+to avoid requiring an immediate production migration.
 
 ## Before a public launch
 
-Add staff authentication and per-shop permissions, manager price overrides,
-sold/reserved workflows, verified partner records, privacy and accessibility
-policies, stock analytics, and a secondary metadata provider.
+Add per-volunteer accounts and permissions, verified partner records, privacy
+and accessibility policies, stock analytics, audit history, and a secondary
+metadata provider.
