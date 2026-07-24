@@ -6,7 +6,6 @@ import { books, inventory } from "../../../db/schema";
 import { syncMasterShops } from "../../../db/sync-master-shops";
 import { lookupIsbn } from "../../../lib/isbn";
 import type { BookCondition } from "../../../lib/types";
-import { valueBook } from "../../../lib/valuation";
 import { SHOP_SESSION_COOKIE, readShopSession } from "../../../lib/shop-auth";
 
 type IntakePayload = {
@@ -51,7 +50,6 @@ export async function POST(request: Request) {
     }
 
     const metadata = await lookupIsbn(isbn);
-    const valuation = valueBook(metadata, condition);
 
     try {
       const db = await getDb();
@@ -98,30 +96,32 @@ export async function POST(request: Request) {
           shopId: shop.id,
           shelfLocation,
           condition,
-          pricePence: valuation.pricePence,
-          valuationConfidence: valuation.confidence,
-          valuationReasons: JSON.stringify(valuation.reasons),
+          // Retained only for compatibility with the existing database schema.
+          // Giveleaf does not calculate or display prices.
+          pricePence: 0,
+          valuationConfidence: "not_used",
+          valuationReasons: "[]",
         })
         .returning();
 
       return Response.json(
-        { book: metadata, valuation, inventoryId: stock.id, shop },
+        { action: "added", book: metadata, inventoryId: stock.id, shop },
         { status: 201 },
       );
-    } catch {
+    } catch (databaseError) {
       return Response.json(
         {
-          book: metadata,
-          valuation,
-          inventoryId: Date.now(),
-          demo: true,
+          error:
+            databaseError instanceof Error
+              ? databaseError.message
+              : "Inventory storage is temporarily unavailable.",
         },
-        { status: 201 },
+        { status: 503 },
       );
     }
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : "Could not value this book." },
+      { error: error instanceof Error ? error.message : "Could not add this book." },
       { status: 400 },
     );
   }

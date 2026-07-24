@@ -6,9 +6,9 @@ export function SiteHeader({ staff = false }: { staff?: boolean }) {
 
   return (
     <header className="site-header">
-      <Link className="brand" href="/" aria-label="Spine home">
+      <Link className="brand" href="/" aria-label="Giveleaf home">
         <span className="brand-mark" aria-hidden="true"><span /></span>
-        <span>spine</span>
+        <span>giveleaf</span>
       </Link>
       <nav aria-label="Primary navigation">
         {siteMode !== "scanner" && (
@@ -19,7 +19,7 @@ export function SiteHeader({ staff = false }: { staff?: boolean }) {
         {siteMode !== "catalogue" && (
           <Link className={staff ? "staff-link active" : "staff-link"} href="/staff">
             <ScanIcon />
-            Intake
+            Shop
           </Link>
         )}
       </nav>

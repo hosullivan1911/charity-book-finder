@@ -36,7 +36,7 @@ export function ShopLogin() {
     <div className="login-shell">
       <section className="login-card">
         <span className="login-icon"><ShopIcon /></span>
-        <p className="kicker">Spine / Intake</p>
+        <p className="kicker">Giveleaf for shops</p>
         <h1>Shop access</h1>
         <p className="login-intro">
           Sign in with your shop credentials to manage live inventory.

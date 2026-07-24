@@ -2,23 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { masterShops } from "../../config/shops";
-import { demoInventory } from "../../lib/demo-data";
 import type { InventoryBook } from "../../lib/types";
 import { ArrowIcon, BookIcon, PinIcon, SearchIcon, ShopIcon } from "./icons";
-
-function formatPrice(cents: number) {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-  }).format(cents / 100);
-}
 
 export function PublicCatalogue() {
   const [query, setQuery] = useState("");
   const [shop, setShop] = useState("all");
-  const [inventory, setInventory] = useState<InventoryBook[]>(demoInventory);
+  const [inventory, setInventory] = useState<InventoryBook[]>([]);
   const [selected, setSelected] = useState<InventoryBook | null>(null);
   const [loading, setLoading] = useState(true);
+  const [inventoryUnavailable, setInventoryUnavailable] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -30,9 +23,12 @@ export function PublicCatalogue() {
           signal: controller.signal,
         });
         const data = (await response.json()) as { inventory?: InventoryBook[] };
+        if (!response.ok) throw new Error("Live inventory is unavailable.");
         if (Array.isArray(data.inventory)) setInventory(data.inventory);
+        setInventoryUnavailable(false);
       } catch {
         // Keep the last successful inventory while temporarily offline.
+        setInventoryUnavailable(true);
       } finally {
         setLoading(false);
       }
@@ -67,7 +63,7 @@ export function PublicCatalogue() {
         </div>
         <h1>Books, where they<br />actually are.</h1>
         <p>
-          Search live shelves across participating shops. See the price,
+          Search live shelves across participating charity shops. See the
           condition and exact location before you go.
         </p>
 
@@ -107,6 +103,11 @@ export function PublicCatalogue() {
       </section>
 
       <section className="catalogue-section" id="books">
+        {inventoryUnavailable && (
+          <p className="catalogue-notice" role="status">
+            Live inventory is temporarily unavailable. Please try again shortly.
+          </p>
+        )}
         <div className="section-heading">
           <div>
             <p className="kicker">{query || shop !== "all" ? "Filtered inventory" : "Live inventory"}</p>
@@ -136,7 +137,6 @@ export function PublicCatalogue() {
                       event.currentTarget.src = "/book-placeholder.svg";
                     }}
                   />
-                  <span className="price-tag">{formatPrice(book.pricePence)}</span>
                 </div>
                 <div className="book-copy">
                   <p className="book-format">{book.format}</p>
@@ -188,7 +188,7 @@ export function PublicCatalogue() {
       <footer>
         <div className="brand footer-brand">
           <span className="brand-mark" aria-hidden="true"><span /></span>
-          <span>spine</span>
+          <span>giveleaf</span>
         </div>
         <p>Live local book inventory.</p>
       </footer>
@@ -218,7 +218,6 @@ export function PublicCatalogue() {
                 <p className="book-format">{selected.format} · {selected.condition.replace("_", " ")}</p>
                 <h2 id="book-title">{selected.title}</h2>
                 <p className="modal-author">{selected.author}</p>
-                <p className="modal-price">{formatPrice(selected.pricePence)}</p>
               </div>
             </div>
             <div className="collection-card">

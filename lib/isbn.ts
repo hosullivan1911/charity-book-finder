@@ -37,7 +37,7 @@ export async function lookupIsbn(isbnInput: string): Promise<BookMetadata> {
   const response = await fetch(
     `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn13}&jscmd=data&format=json`,
     {
-      headers: { "User-Agent": "Spine/0.1 (charity-book-finder)" },
+      headers: { "User-Agent": "Giveleaf/0.1 (charity-book-finder)" },
       signal: AbortSignal.timeout(8000),
     },
   );

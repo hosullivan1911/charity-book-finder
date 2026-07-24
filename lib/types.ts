@@ -23,9 +23,6 @@ export type InventoryBook = {
   shop: Shop;
   shelfLocation: string;
   condition: BookCondition;
-  pricePence: number;
-  valuationConfidence: "high" | "medium" | "low";
-  valuationReasons: string[];
   scannedAt: string;
 };
 
@@ -38,11 +35,4 @@ export type BookMetadata = {
   coverUrl?: string;
   subjects: string[];
   format: string;
-};
-
-export type Valuation = {
-  pricePence: number;
-  confidence: "high" | "medium" | "low";
-  reasons: string[];
-  manualReview: boolean;
 };
