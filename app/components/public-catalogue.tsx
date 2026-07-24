@@ -61,7 +61,7 @@ function BookCard({
             event.currentTarget.src = "/book-placeholder.svg";
           }}
         />
-        {recommendation && <span className="ai-match">AI alternative</span>}
+        {recommendation && <span className="ai-match">Smart alternative</span>}
       </div>
       <div className="book-copy">
         <p className="book-format">{book.format}</p>
@@ -456,7 +456,7 @@ export function PublicCatalogue() {
         ) : searchSubmitted && query.trim() ? (
           <div className="alternatives-state">
             <div className="alternatives-intro">
-              <span className="ai-symbol">AI</span>
+              <span className="ai-symbol">↗</span>
               <div>
                 <p className="kicker">Smart alternatives</p>
                 <h3>That exact book is not on a nearby shelf.</h3>

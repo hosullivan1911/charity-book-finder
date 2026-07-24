@@ -2,6 +2,13 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "../../../../db";
 import { staffUsers } from "../../../../db/schema";
+import { recordAuditEvent } from "../../../../lib/audit";
+import {
+  authRateLimitKey,
+  checkAuthRateLimit,
+  clearAuthRateLimit,
+  recordAuthFailure,
+} from "../../../../lib/rate-limit";
 import {
   createStaffSession,
   normaliseUsername,
@@ -24,23 +31,48 @@ export async function POST(request: Request) {
   const username = normaliseUsername(payload.username ?? "");
   const password = payload.password ?? "";
   const db = await getDb();
+  const rateLimitKey = authRateLimitKey(request, "login", username);
+  const blockedMinutes = await checkAuthRateLimit(db, rateLimitKey);
+  if (blockedMinutes) {
+    return NextResponse.json(
+      {
+        error: `Too many sign-in attempts. Try again in ${blockedMinutes} minute${blockedMinutes === 1 ? "" : "s"}.`,
+      },
+      { status: 429 },
+    );
+  }
+
   const [user] = await db
     .select()
     .from(staffUsers)
     .where(eq(staffUsers.username, username))
     .limit(1);
 
-  if (!user || !(await passwordMatches(password, user.passwordHash))) {
+  if (
+    !user ||
+    !user.active ||
+    !(await passwordMatches(password, user.passwordHash))
+  ) {
+    await recordAuthFailure(db, rateLimitKey);
     return NextResponse.json(
       { error: "Username or password is incorrect." },
       { status: 401 },
     );
   }
 
+  await clearAuthRateLimit(db, rateLimitKey);
   const token = await createStaffSession(user.id);
+  await recordAuditEvent(db, {
+    actor: user,
+    shopId: user.shopId,
+    action: "staff.login",
+    targetType: "staff_user",
+    targetId: user.id,
+  });
   const response = NextResponse.json({
     authenticated: true,
     username: user.username,
+    role: user.role,
   });
   response.cookies.set({
     name: SHOP_SESSION_COOKIE,

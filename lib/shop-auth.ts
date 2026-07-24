@@ -5,7 +5,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { promisify } from "node:util";
-import { and, eq, gt } from "drizzle-orm";
+import { and, count, eq, gt } from "drizzle-orm";
 import { masterShops } from "../config/shops";
 import { getDb } from "../db";
 import { shops, staffSessions, staffUsers } from "../db/schema";
@@ -15,6 +15,8 @@ export const SHOP_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
 const scrypt = promisify(scryptCallback);
 const PASSWORD_KEY_LENGTH = 64;
+
+export type StaffRole = "admin" | "manager" | "staff";
 
 export function normaliseUsername(value: string) {
   return value.trim().toLowerCase();
@@ -65,8 +67,17 @@ export async function passwordMatches(password: string, storedHash: string) {
   }
 }
 
-function hashSessionToken(token: string) {
+export function hashOpaqueToken(token: string) {
   return createHash("sha256").update(token).digest("base64url");
+}
+
+export function secureHashMatches(value: string, expectedHexHash: string) {
+  const actual = Buffer.from(
+    createHash("sha256").update(value).digest("hex"),
+    "utf8",
+  );
+  const expected = Buffer.from(expectedHexHash, "utf8");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 export async function createStaffSession(userId: number) {
@@ -77,7 +88,7 @@ export async function createStaffSession(userId: number) {
   ).toISOString();
 
   await db.insert(staffSessions).values({
-    tokenHash: hashSessionToken(token),
+    tokenHash: hashOpaqueToken(token),
     userId,
     expiresAt,
   });
@@ -89,7 +100,13 @@ export async function deleteStaffSession(token?: string) {
   const db = await getDb();
   await db
     .delete(staffSessions)
-    .where(eq(staffSessions.tokenHash, hashSessionToken(token)));
+    .where(eq(staffSessions.tokenHash, hashOpaqueToken(token)));
+}
+
+export async function hasStaffUsers() {
+  const db = await getDb();
+  const [result] = await db.select({ total: count() }).from(staffUsers);
+  return Number(result?.total ?? 0) > 0;
 }
 
 export async function getStaffSession(token?: string) {
@@ -102,6 +119,8 @@ export async function getStaffSession(token?: string) {
         id: staffUsers.id,
         username: staffUsers.username,
         shopId: staffUsers.shopId,
+        role: staffUsers.role,
+        active: staffUsers.active,
       },
       shop: shops,
     })
@@ -110,8 +129,9 @@ export async function getStaffSession(token?: string) {
     .innerJoin(shops, eq(staffUsers.shopId, shops.id))
     .where(
       and(
-        eq(staffSessions.tokenHash, hashSessionToken(token)),
+        eq(staffSessions.tokenHash, hashOpaqueToken(token)),
         gt(staffSessions.expiresAt, new Date().toISOString()),
+        eq(staffUsers.active, true),
         eq(shops.active, true),
       ),
     )
@@ -129,4 +149,12 @@ export async function getStaffSession(token?: string) {
     shop: session.shop,
     configuredShop,
   };
+}
+
+export function isManagementRole(role: string): role is "admin" | "manager" {
+  return role === "admin" || role === "manager";
+}
+
+export function canManageShop(role: string, userShopId: number, shopId: number) {
+  return role === "admin" || (role === "manager" && userShopId === shopId);
 }

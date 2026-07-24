@@ -10,10 +10,11 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import type { BookMetadata, InventoryBook, Shop } from "../../lib/types";
 import { BookIcon, ScanIcon, SearchIcon, ShopIcon } from "./icons";
 
-type StockMode = "add" | "inventory";
+type StockMode = "add" | "inventory" | "account";
 
 type StockResult = {
   action: "added";
@@ -24,21 +25,33 @@ type StockResult = {
 export function StaffScanner({
   shop,
   username,
+  role,
 }: {
   shop: Shop;
   username: string;
+  role: string;
 }) {
   const [mode, setMode] = useState<StockMode>("add");
   const [isbn, setIsbn] = useState("");
   const [scanning, setScanning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [manualEntry, setManualEntry] = useState(false);
+  const [manualTitle, setManualTitle] = useState("");
+  const [manualAuthor, setManualAuthor] = useState("");
+  const [manualCoverUrl, setManualCoverUrl] = useState("");
   const [result, setResult] = useState<StockResult | null>(null);
   const [inventory, setInventory] = useState<InventoryBook[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState("");
   const [inventoryQuery, setInventoryQuery] = useState("");
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [lastRemoved, setLastRemoved] = useState<InventoryBook | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [accountMessage, setAccountMessage] = useState("");
+  const [accountError, setAccountError] = useState("");
+  const [accountSaving, setAccountSaving] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
 
@@ -102,7 +115,10 @@ export function StaffScanner({
   }, []);
 
   const processStock = useCallback(
-    async (code: string) => {
+    async (
+      code: string,
+      manual?: { title: string; author: string; coverUrl: string },
+    ) => {
       const cleanIsbn = code.replace(/\D/g, "");
       if (cleanIsbn.length !== 13) {
         setError("Enter the 13-digit ISBN printed above the barcode.");
@@ -117,7 +133,7 @@ export function StaffScanner({
         const response = await fetch("/api/intake", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isbn: cleanIsbn }),
+          body: JSON.stringify({ isbn: cleanIsbn, ...(manual ? { manual } : {}) }),
         });
         const data = (await response.json()) as StockResult & {
           error?: string;
@@ -127,6 +143,10 @@ export function StaffScanner({
         }
         setResult(data);
         setIsbn("");
+        setManualEntry(false);
+        setManualTitle("");
+        setManualAuthor("");
+        setManualCoverUrl("");
         await refreshInventory();
       } catch (submissionError) {
         setError(
@@ -233,6 +253,15 @@ export function StaffScanner({
     void processStock(isbn);
   }
 
+  function submitManual(event: FormEvent) {
+    event.preventDefault();
+    void processStock(isbn, {
+      title: manualTitle,
+      author: manualAuthor,
+      coverUrl: manualCoverUrl,
+    });
+  }
+
   async function removeInventoryItem(inventoryId: number) {
     setRemovingId(inventoryId);
     setInventoryError("");
@@ -246,6 +275,9 @@ export function StaffScanner({
       if (!response.ok) {
         throw new Error(data.error || "Could not remove this book.");
       }
+      setLastRemoved(
+        inventory.find((book) => book.inventoryId === inventoryId) ?? null,
+      );
       setInventory((current) =>
         current.filter((book) => book.inventoryId !== inventoryId),
       );
@@ -257,6 +289,59 @@ export function StaffScanner({
       );
     } finally {
       setRemovingId(null);
+    }
+  }
+
+  async function undoRemoval() {
+    if (!lastRemoved) return;
+    setInventoryError("");
+    try {
+      const response = await fetch("/api/shop-inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inventoryId: lastRemoved.inventoryId }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || "Could not undo that removal.");
+      }
+      setLastRemoved(null);
+      await refreshInventory();
+    } catch (restoreError) {
+      setInventoryError(
+        restoreError instanceof Error
+          ? restoreError.message
+          : "Could not undo that removal.",
+      );
+    }
+  }
+
+  async function changePassword(event: FormEvent) {
+    event.preventDefault();
+    setAccountSaving(true);
+    setAccountError("");
+    setAccountMessage("");
+    try {
+      const response = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || "Could not change your password.");
+      }
+      setCurrentPassword("");
+      setNewPassword("");
+      setAccountMessage("Password changed. Other signed-in devices were logged out.");
+    } catch (passwordError) {
+      setAccountError(
+        passwordError instanceof Error
+          ? passwordError.message
+          : "Could not change your password.",
+      );
+    } finally {
+      setAccountSaving(false);
     }
   }
 
@@ -307,6 +392,17 @@ export function StaffScanner({
               <small>{inventory.length} available</small>
             </div>
           </button>
+          <button
+            className={mode === "account" ? "active" : ""}
+            onClick={() => changeMode("account")}
+            type="button"
+          >
+            <span>○</span>
+            <div>
+              <strong>Account</strong>
+              <small>Password and access</small>
+            </div>
+          </button>
         </nav>
 
         <div className="aside-tip">
@@ -322,10 +418,18 @@ export function StaffScanner({
         <div className="intake-heading">
           <div>
             <p className="kicker">
-              {mode === "add" ? "Stock in" : "Current stock"}
+              {mode === "add"
+                ? "Stock in"
+                : mode === "inventory"
+                  ? "Current stock"
+                  : "Staff account"}
             </p>
             <h2>
-              {mode === "add" ? "Add a book" : "Shop inventory"}
+              {mode === "add"
+                ? "Add a book"
+                : mode === "inventory"
+                  ? "Shop inventory"
+                  : username}
             </h2>
           </div>
           <div className="shop-session">
@@ -339,10 +443,63 @@ export function StaffScanner({
             >
               Sign out
             </button>
+            {(role === "admin" || role === "manager") && (
+              <Link className="manage-link" href="/admin">
+                Manage
+              </Link>
+            )}
           </div>
         </div>
 
-        {mode === "inventory" ? (
+        {mode === "account" ? (
+          <div className="account-view">
+            <div className="account-summary">
+              <span>{role}</span>
+              <div>
+                <strong>{username}</strong>
+                <p>Assigned to {shop.name}</p>
+              </div>
+            </div>
+            <form onSubmit={changePassword}>
+              <label className="form-field">
+                <span>Current password</span>
+                <input
+                  autoComplete="current-password"
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  required
+                  type="password"
+                  value={currentPassword}
+                />
+              </label>
+              <label className="form-field">
+                <span>New password</span>
+                <input
+                  autoComplete="new-password"
+                  minLength={10}
+                  maxLength={128}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  required
+                  type="password"
+                  value={newPassword}
+                />
+                <small>Use at least 10 characters.</small>
+              </label>
+              {accountError && (
+                <p className="form-error" role="alert">{accountError}</p>
+              )}
+              {accountMessage && (
+                <p className="form-success" role="status">{accountMessage}</p>
+              )}
+              <button
+                className="primary-action"
+                disabled={accountSaving}
+                type="submit"
+              >
+                {accountSaving ? "Saving…" : "Change password"}
+              </button>
+            </form>
+          </div>
+        ) : mode === "inventory" ? (
           <div className="inventory-view">
             <div className="inventory-filters">
               <label className="inventory-search">
@@ -360,6 +517,12 @@ export function StaffScanner({
 
             {inventoryError && (
               <p className="form-error" role="alert">{inventoryError}</p>
+            )}
+            {lastRemoved && (
+              <div className="undo-banner" role="status">
+                <span>{lastRemoved.title} was removed.</span>
+                <button onClick={undoRemoval} type="button">Undo</button>
+              </div>
             )}
 
             {inventoryLoading ? (
@@ -479,9 +642,68 @@ export function StaffScanner({
                 ? "Updating inventory…"
                 : "Add to inventory"}
             </button>
+
+            <button
+              className="text-action"
+              onClick={() => {
+                setManualEntry((current) => !current);
+                setError("");
+              }}
+              type="button"
+            >
+              {manualEntry
+                ? "Use automatic book lookup"
+                : "Book not found? Enter its details manually"}
+            </button>
           </form>
         )}
       </section>
+
+      {mode === "add" && manualEntry && !result && (
+        <div className="manual-entry-panel">
+          <form onSubmit={submitManual}>
+            <div>
+              <p className="kicker">Manual fallback</p>
+              <h2>Add verified book details</h2>
+              <p>Use this only when automatic ISBN lookup cannot find the edition.</p>
+            </div>
+            <label className="form-field">
+              <span>Title</span>
+              <input
+                onChange={(event) => setManualTitle(event.target.value)}
+                required
+                value={manualTitle}
+              />
+            </label>
+            <label className="form-field">
+              <span>Author</span>
+              <input
+                onChange={(event) => setManualAuthor(event.target.value)}
+                required
+                value={manualAuthor}
+              />
+            </label>
+            <label className="form-field">
+              <span>Cover image URL (optional)</span>
+              <input
+                inputMode="url"
+                onChange={(event) => setManualCoverUrl(event.target.value)}
+                placeholder="https://…"
+                type="url"
+                value={manualCoverUrl}
+              />
+              <small>A Giveleaf book cover is used if this is left blank.</small>
+            </label>
+            <button
+              className="primary-action"
+              disabled={submitting}
+              type="submit"
+            >
+              {submitting ? "Adding…" : "Add verified book"}
+            </button>
+          </form>
+        </div>
+      )}
 
       {scanning && (
         <div

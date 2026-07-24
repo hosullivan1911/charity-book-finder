@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { LAUNCH_DATA_RESET_KEY } from "../config/launch";
 import type { Database } from ".";
 
 /**
@@ -38,8 +39,18 @@ export async function ensureDatabaseSchema(db: Database) {
       "username" text NOT NULL UNIQUE,
       "password_hash" text NOT NULL,
       "shop_id" integer NOT NULL REFERENCES "shops"("id"),
-      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+      "role" text DEFAULT 'staff' NOT NULL,
+      "active" boolean DEFAULT true NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
     )
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE "staff_users"
+      ADD COLUMN IF NOT EXISTS "role" text DEFAULT 'staff' NOT NULL,
+      ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL,
+      ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   `);
 
   await db.execute(sql`
@@ -48,6 +59,53 @@ export async function ensureDatabaseSchema(db: Database) {
       "user_id" integer NOT NULL REFERENCES "staff_users"("id") ON DELETE CASCADE,
       "expires_at" timestamp with time zone NOT NULL,
       "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "shop_invites" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "code_hash" text NOT NULL UNIQUE,
+      "shop_id" integer NOT NULL REFERENCES "shops"("id"),
+      "role" text DEFAULT 'staff' NOT NULL,
+      "created_by" integer REFERENCES "staff_users"("id") ON DELETE SET NULL,
+      "expires_at" timestamp with time zone NOT NULL,
+      "max_uses" integer DEFAULT 1 NOT NULL,
+      "use_count" integer DEFAULT 0 NOT NULL,
+      "active" boolean DEFAULT true NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "auth_rate_limits" (
+      "key" text PRIMARY KEY NOT NULL,
+      "attempt_count" integer DEFAULT 0 NOT NULL,
+      "window_started_at" timestamp with time zone NOT NULL,
+      "blocked_until" timestamp with time zone,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "audit_events" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "actor_user_id" integer REFERENCES "staff_users"("id") ON DELETE SET NULL,
+      "actor_username" text,
+      "shop_id" integer REFERENCES "shops"("id"),
+      "action" text NOT NULL,
+      "target_type" text NOT NULL,
+      "target_id" text,
+      "details" text DEFAULT '{}' NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "app_state" (
+      "key" text PRIMARY KEY NOT NULL,
+      "value" text NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
     )
   `);
 
@@ -80,8 +138,18 @@ export async function ensureDatabaseSchema(db: Database) {
       "status" text DEFAULT 'available' NOT NULL,
       "scanned_by" text,
       "scanned_at" timestamp with time zone DEFAULT now() NOT NULL,
-      "sold_at" timestamp with time zone
+      "sold_at" timestamp with time zone,
+      "removed_by" text,
+      "removal_reason" text,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
     )
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE "inventory"
+      ADD COLUMN IF NOT EXISTS "removed_by" text,
+      ADD COLUMN IF NOT EXISTS "removal_reason" text,
+      ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   `);
 
   await db.execute(
@@ -103,6 +171,22 @@ export async function ensureDatabaseSchema(db: Database) {
     ON "staff_sessions" ("expires_at")
   `);
   await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "shop_invites_shop_idx"
+    ON "shop_invites" ("shop_id")
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "shop_invites_expiry_idx"
+    ON "shop_invites" ("expires_at")
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "audit_events_shop_idx"
+    ON "audit_events" ("shop_id")
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "audit_events_created_idx"
+    ON "audit_events" ("created_at")
+  `);
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "inventory_shop_status_idx"
     ON "inventory" ("shop_id", "status")
   `);
@@ -110,4 +194,26 @@ export async function ensureDatabaseSchema(db: Database) {
     CREATE INDEX IF NOT EXISTS "inventory_book_status_idx"
     ON "inventory" ("book_id", "status")
   `);
+
+  // One guarded reset clears only the prototype data requested by the owner.
+  // Shop records survive, and the marker prevents the reset from ever repeating.
+  await db.execute(sql.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM "app_state"
+        WHERE "key" = '${LAUNCH_DATA_RESET_KEY}'
+      ) THEN
+        DELETE FROM "audit_events";
+        DELETE FROM "staff_sessions";
+        DELETE FROM "shop_invites";
+        DELETE FROM "inventory";
+        DELETE FROM "books";
+        DELETE FROM "staff_users";
+        INSERT INTO "app_state" ("key", "value")
+        VALUES ('${LAUNCH_DATA_RESET_KEY}', 'complete');
+      END IF;
+    END
+    $$;
+  `));
 }

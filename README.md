@@ -73,6 +73,9 @@ Add these server environment variables to the scanner project:
 ```text
 SITE_MODE=scanner
 DATABASE_URL=<the shared Neon connection string>
+
+# Optional fallback for editions missing from Open Library
+GOOGLE_BOOKS_API_KEY=<Google Books API key>
 ```
 
 The catalogue project only needs:
@@ -97,11 +100,15 @@ npm run db:migrate
 Redeploy both projects after adding their environment variables. Future pushes
 to `main` deploy both sites automatically.
 
-The catalogue site opens at `/`. The scanner site redirects `/` to `/staff` and
-allows staff to create a username and password, choose a participating shop,
-and sign in. Passwords are stored only as salted hashes. Each account is
-permanently linked to its selected shop, and its session is stored securely in
-Neon. Vercel serves both sites over HTTPS, which is required for camera access.
+The catalogue site opens at `/`. The scanner site redirects `/` to `/staff`.
+After the launch reset, the project owner uses the private one-time setup code
+to create the first owner account. Setup then closes permanently. Owners and
+managers create time-limited, shop-specific invitations for every subsequent
+staff account.
+
+Passwords are stored only as salted scrypt hashes. Browser sessions use random
+tokens in secure HTTP-only cookies while Neon stores only token hashes. Vercel
+serves both sites over HTTPS, which is required for camera access.
 
 ## Run locally
 
@@ -143,16 +150,38 @@ loading sample inventory.
 - Vercel hosting and server functions
 - Neon Postgres via Drizzle ORM
 - Open Library ISBN metadata
+- Optional Google Books metadata fallback
 - Open Library-enriched content recommendation model
 - OpenStreetMap Nominatim address geocoding
 - ZXing browser barcode scanner with rear-camera preference
+- Invitation-only role-based staff access
+- Management dashboard, launch metrics and CSV inventory export
+- Database-backed authentication rate limits and audit history
 
 Database tables are defined in `db/schema.ts`; migrations live in `drizzle/`.
 The original pricing columns remain unused in the first database schema solely
 to avoid requiring an immediate production migration.
 
-## Before a public launch
+## Staff roles and pilot operations
 
-Add shop invitation or manager approval codes, login rate limiting, password
-recovery, verified partner records, privacy and accessibility policies, stock
-analytics, fuller audit history, and a secondary metadata provider.
+- `admin` manages every shop, account, invitation and inventory record.
+- `manager` manages staff invitations and inventory for the assigned shop.
+- `staff` scans books, searches current stock, undoes removals and changes their
+  own password.
+
+The management dashboard is available at `/admin`. Managers can disable
+accounts, reset passwords, revoke invitations, correct metadata, restore
+removed books and inspect the audit trail. Readable passwords and invitation
+codes are never stored.
+
+Before adding a real partner:
+
+1. Create the owner using the private one-time code.
+2. Issue one invitation per staff member from Management.
+3. Protect the GitHub, Vercel and Neon owner accounts with MFA.
+4. Test database restore and inventory export procedures.
+5. Confirm the shop accepts the privacy notice, terms and scan/remove process.
+
+The public catalogue does not reserve books, guarantee availability or set shop
+prices. Manual metadata entry remains available when external ISBN services
+cannot identify an edition.

@@ -6,6 +6,7 @@ import {
   SHOP_SESSION_COOKIE,
 } from "../../../lib/shop-auth";
 import { coverUrlForBook } from "../../../lib/isbn";
+import { recordAuditEvent } from "../../../lib/audit";
 import type { InventoryBook } from "../../../lib/types";
 
 type InventoryRow = {
@@ -16,6 +17,7 @@ type InventoryRow = {
 
 type RemovalPayload = {
   inventoryId?: number;
+  reason?: string;
 };
 
 function mapInventoryRow(row: InventoryRow): InventoryBook {
@@ -139,8 +141,24 @@ export async function DELETE(request: Request) {
       .update(inventory)
       .set({
         status: "removed",
+        soldAt: new Date().toISOString(),
+        removedBy: context.user.username,
+        removalReason: payload.reason?.trim() || "No longer available",
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(inventory.id, stock.inventory.id));
+    await recordAuditEvent(context.db, {
+      actor: context.user,
+      shopId: context.shop.id,
+      action: "inventory.removed",
+      targetType: "inventory",
+      targetId: stock.inventory.id,
+      details: {
+        isbn13: stock.book.isbn13,
+        title: stock.book.title,
+        source: "scanner",
+      },
+    });
 
     return Response.json({
       action: "removed",
@@ -153,6 +171,68 @@ export async function DELETE(request: Request) {
           error instanceof Error
             ? error.message
             : "Could not remove this book.",
+      },
+      { status: 503 },
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const context = await getAuthenticatedStaff();
+    if (!context) {
+      return Response.json(
+        { error: "Sign in before restoring books." },
+        { status: 401 },
+      );
+    }
+    const payload = (await request.json()) as { inventoryId?: number };
+    const inventoryId = Number(payload.inventoryId);
+    const [stock] = await context.db
+      .select({ inventory, book: books })
+      .from(inventory)
+      .innerJoin(books, eq(inventory.bookId, books.id))
+      .where(
+        and(
+          eq(inventory.id, inventoryId),
+          eq(inventory.shopId, context.shop.id),
+          eq(inventory.status, "removed"),
+        ),
+      )
+      .limit(1);
+    if (!stock) {
+      return Response.json(
+        { error: "That removal can no longer be undone." },
+        { status: 404 },
+      );
+    }
+
+    await context.db
+      .update(inventory)
+      .set({
+        status: "available",
+        soldAt: null,
+        removedBy: null,
+        removalReason: null,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(inventory.id, stock.inventory.id));
+    await recordAuditEvent(context.db, {
+      actor: context.user,
+      shopId: context.shop.id,
+      action: "inventory.restored",
+      targetType: "inventory",
+      targetId: stock.inventory.id,
+      details: { isbn13: stock.book.isbn13, source: "scanner_undo" },
+    });
+    return Response.json({ action: "restored", inventoryId });
+  } catch (error) {
+    return Response.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not restore this book.",
       },
       { status: 503 },
     );
