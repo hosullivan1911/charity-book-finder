@@ -18,4 +18,14 @@ export const masterShops: Shop[] = [
     latitude: -31.9523,
     longitude: 115.8613,
   },
+  {
+    id: 2,
+    slug: "toms-test-shop",
+    name: "Tom's Test Shop",
+    address: "Leederville, Western Australia",
+    postcode: "6007",
+    openingHours: "Trial shop · By arrangement",
+    latitude: -31.93310379968666,
+    longitude: 115.83822478457111,
+  }
 ];
