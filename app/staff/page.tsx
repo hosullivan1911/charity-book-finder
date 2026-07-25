@@ -22,11 +22,12 @@ export default async function StaffPage() {
     cookieStore.get(SHOP_SESSION_COOKIE)?.value,
   ).catch(() => null);
   const setupRequired = session ? false : !(await hasStaffUsers().catch(() => true));
+  if (session?.user.role === "admin" && !session.shop) redirect("/admin");
 
   return (
     <main className="staff-page">
       <SiteHeader staff />
-      {session ? (
+      {session?.configuredShop ? (
         <StaffScanner
           shop={session.configuredShop}
           username={session.user.username}

@@ -1,10 +1,4 @@
-import { siteConfig } from "../../../config/site";
-
-type NominatimResult = {
-  display_name?: string;
-  lat?: string;
-  lon?: string;
-};
+import { geocodeAustralianAddress } from "../../../lib/geocode";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -18,36 +12,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const params = new URLSearchParams({
-      q: address,
-      format: "jsonv2",
-      countrycodes: "au",
-      limit: "1",
-    });
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?${params.toString()}`,
-      {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": `Giveleaf/1.0 (${siteConfig.supportEmail})`,
-        },
-        next: { revalidate: 86_400 },
-        signal: AbortSignal.timeout(8_000),
-      },
-    );
-    if (!response.ok) {
-      throw new Error("Address lookup is temporarily unavailable.");
-    }
-
-    const results = (await response.json()) as NominatimResult[];
-    const match = results[0];
-    const latitude = Number(match?.lat);
-    const longitude = Number(match?.lon);
-    if (
-      !match?.display_name ||
-      !Number.isFinite(latitude) ||
-      !Number.isFinite(longitude)
-    ) {
+    const match = await geocodeAustralianAddress(address);
+    if (!match) {
       return Response.json(
         {
           error:
@@ -57,11 +23,7 @@ export async function GET(request: Request) {
       );
     }
 
-    return Response.json({
-      displayName: match.display_name,
-      latitude,
-      longitude,
-    });
+    return Response.json(match);
   } catch (error) {
     return Response.json(
       {

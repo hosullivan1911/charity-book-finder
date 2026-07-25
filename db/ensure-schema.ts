@@ -1,5 +1,8 @@
 import { sql } from "drizzle-orm";
-import { LAUNCH_DATA_RESET_KEY } from "../config/launch";
+import {
+  LAUNCH_DATA_RESET_KEY,
+  SHOP_DATA_RESET_KEY,
+} from "../config/launch";
 import type { Database } from ".";
 
 /**
@@ -51,6 +54,11 @@ export async function ensureDatabaseSchema(db: Database) {
       ADD COLUMN IF NOT EXISTS "role" text DEFAULT 'staff' NOT NULL,
       ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL,
       ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE "staff_users"
+      ALTER COLUMN "shop_id" DROP NOT NULL
   `);
 
   await db.execute(sql`
@@ -212,6 +220,33 @@ export async function ensureDatabaseSchema(db: Database) {
         DELETE FROM "staff_users";
         INSERT INTO "app_state" ("key", "value")
         VALUES ('${LAUNCH_DATA_RESET_KEY}', 'complete');
+      END IF;
+    END
+    $$;
+  `));
+
+  // One guarded reset removes all prototype locations and their dependent
+  // records. A platform owner is retained, unassigned from any shop, so the
+  // real directory can be created from the management dashboard.
+  await db.execute(sql.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM "app_state"
+        WHERE "key" = '${SHOP_DATA_RESET_KEY}'
+      ) THEN
+        DELETE FROM "audit_events";
+        DELETE FROM "staff_sessions";
+        DELETE FROM "shop_invites";
+        DELETE FROM "inventory";
+        DELETE FROM "books";
+        DELETE FROM "staff_users" WHERE "role" <> 'admin';
+        UPDATE "staff_users"
+          SET "shop_id" = NULL, "updated_at" = now()
+          WHERE "role" = 'admin';
+        DELETE FROM "shops";
+        INSERT INTO "app_state" ("key", "value")
+        VALUES ('${SHOP_DATA_RESET_KEY}', 'complete');
       END IF;
     END
     $$;

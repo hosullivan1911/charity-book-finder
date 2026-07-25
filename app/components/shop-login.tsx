@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { masterShops } from "../../config/shops";
+import { FormEvent, useEffect, useState } from "react";
+import type { Shop } from "../../lib/types";
 import { ShopIcon } from "./icons";
 
 type AuthMode = "login" | "register" | "setup";
@@ -12,11 +12,35 @@ export function ShopLogin({ setupRequired = false }: { setupRequired?: boolean }
   );
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [shopSlug, setShopSlug] = useState(masterShops[0]?.slug ?? "");
+  const [shops, setShops] = useState<Shop[]>([]);
+  const [shopSlug, setShopSlug] = useState("");
+  const [shopsLoading, setShopsLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState("");
   const [setupCode, setSetupCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadShops() {
+      try {
+        const response = await fetch("/api/shops", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const body = (await response.json()) as { shops?: Shop[] };
+        const activeShops = Array.isArray(body.shops) ? body.shops : [];
+        setShops(activeShops);
+        setShopSlug((current) => current || activeShops[0]?.slug || "");
+      } catch {
+        if (!controller.signal.aborted) setShops([]);
+      } finally {
+        if (!controller.signal.aborted) setShopsLoading(false);
+      }
+    }
+    void loadShops();
+    return () => controller.abort();
+  }, []);
 
   function changeMode(nextMode: AuthMode) {
     setMode(nextMode);
@@ -42,7 +66,7 @@ export function ShopLogin({ setupRequired = false }: { setupRequired?: boolean }
           body: JSON.stringify({
             username,
             password,
-            ...(mode !== "login" ? { shopSlug } : {}),
+            ...(mode === "register" ? { shopSlug } : {}),
             ...(mode === "register" ? { inviteCode } : {}),
             ...(mode === "setup" ? { setupCode } : {}),
           }),
@@ -57,7 +81,7 @@ export function ShopLogin({ setupRequired = false }: { setupRequired?: boolean }
               : "Could not create the account."),
         );
       }
-      window.location.reload();
+      window.location.assign(mode === "setup" ? "/admin" : "/staff");
     } catch (authError) {
       setError(
         authError instanceof Error
@@ -126,7 +150,7 @@ export function ShopLogin({ setupRequired = false }: { setupRequired?: boolean }
             )}
           </label>
 
-          {mode !== "login" && (
+          {mode === "register" && (
             <label className="form-field">
               <span>Assigned shop</span>
               <select
@@ -134,13 +158,19 @@ export function ShopLogin({ setupRequired = false }: { setupRequired?: boolean }
                 required
                 value={shopSlug}
               >
-                {masterShops.map((shop) => (
+                {shops.map((shop) => (
                   <option key={shop.slug} value={shop.slug}>
                     {shop.name}
                   </option>
                 ))}
               </select>
-              <small>Managers can reassign this later if needed.</small>
+              <small>
+                {shopsLoading
+                  ? "Loading participating shops…"
+                  : shops.length
+                    ? "Managers can reassign this later if needed."
+                    : "No shops are available yet. Ask the Giveleaf owner to add one."}
+              </small>
             </label>
           )}
 
@@ -195,7 +225,11 @@ export function ShopLogin({ setupRequired = false }: { setupRequired?: boolean }
           </label>
 
           {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="primary-action" disabled={submitting} type="submit">
+          <button
+            className="primary-action"
+            disabled={submitting || (mode === "register" && !shopSlug)}
+            type="submit"
+          >
             {submitting
               ? mode === "login"
                 ? "Signing in…"

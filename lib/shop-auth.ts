@@ -6,9 +6,9 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 import { and, count, eq, gt } from "drizzle-orm";
-import { masterShops } from "../config/shops";
 import { getDb } from "../db";
 import { shops, staffSessions, staffUsers } from "../db/schema";
+import { mapShop } from "./shops";
 
 export const SHOP_SESSION_COOKIE = "giveleaf_staff_session";
 export const SHOP_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
@@ -122,32 +122,38 @@ export async function getStaffSession(token?: string) {
         role: staffUsers.role,
         active: staffUsers.active,
       },
-      shop: shops,
     })
     .from(staffSessions)
     .innerJoin(staffUsers, eq(staffSessions.userId, staffUsers.id))
-    .innerJoin(shops, eq(staffUsers.shopId, shops.id))
     .where(
       and(
         eq(staffSessions.tokenHash, hashOpaqueToken(token)),
         gt(staffSessions.expiresAt, new Date().toISOString()),
         eq(staffUsers.active, true),
-        eq(shops.active, true),
       ),
     )
     .limit(1);
 
   if (!session) return null;
-  const configuredShop = masterShops.find(
-    (shop) => shop.slug === session.shop.slug,
-  );
-  if (!configuredShop) return null;
+  const [shop] = session.user.shopId
+    ? await db
+        .select()
+        .from(shops)
+        .where(
+          and(
+            eq(shops.id, session.user.shopId),
+            eq(shops.active, true),
+          ),
+        )
+        .limit(1)
+    : [];
+  if (session.user.role !== "admin" && !shop) return null;
 
   return {
     db,
     user: session.user,
-    shop: session.shop,
-    configuredShop,
+    shop: shop ?? null,
+    configuredShop: shop ? mapShop(shop) : null,
   };
 }
 
@@ -155,6 +161,13 @@ export function isManagementRole(role: string): role is "admin" | "manager" {
   return role === "admin" || role === "manager";
 }
 
-export function canManageShop(role: string, userShopId: number, shopId: number) {
-  return role === "admin" || (role === "manager" && userShopId === shopId);
+export function canManageShop(
+  role: string,
+  userShopId: number | null,
+  shopId: number | null,
+) {
+  return (
+    role === "admin" ||
+    (role === "manager" && userShopId !== null && userShopId === shopId)
+  );
 }

@@ -1,10 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { masterShops } from "../../config/shops";
 import type {
   BookRecommendation,
   InventoryBook,
+  Shop,
 } from "../../lib/types";
 import { ArrowIcon, BookIcon, PinIcon, SearchIcon, ShopIcon } from "./icons";
 
@@ -91,6 +91,7 @@ export function PublicCatalogue() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [inventory, setInventory] = useState<InventoryBook[]>([]);
+  const [participatingShops, setParticipatingShops] = useState<Shop[]>([]);
   const [selected, setSelected] = useState<InventoryBook | null>(null);
   const [loading, setLoading] = useState(true);
   const [inventoryUnavailable, setInventoryUnavailable] = useState(false);
@@ -110,13 +111,27 @@ export function PublicCatalogue() {
 
     async function refreshInventory() {
       try {
-        const response = await fetch("/api/inventory", {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        const data = (await response.json()) as { inventory?: InventoryBook[] };
-        if (!response.ok) throw new Error("Live inventory is unavailable.");
+        const [inventoryResponse, shopsResponse] = await Promise.all([
+          fetch("/api/inventory", {
+            cache: "no-store",
+            signal: controller.signal,
+          }),
+          fetch("/api/shops", {
+            cache: "no-store",
+            signal: controller.signal,
+          }),
+        ]);
+        const data = (await inventoryResponse.json()) as {
+          inventory?: InventoryBook[];
+        };
+        const shopData = (await shopsResponse.json()) as { shops?: Shop[] };
+        if (!inventoryResponse.ok || !shopsResponse.ok) {
+          throw new Error("Live inventory is unavailable.");
+        }
         if (Array.isArray(data.inventory)) setInventory(data.inventory);
+        if (Array.isArray(shopData.shops)) {
+          setParticipatingShops(shopData.shops);
+        }
         setInventoryUnavailable(false);
       } catch {
         if (!controller.signal.aborted) setInventoryUnavailable(true);
@@ -135,7 +150,7 @@ export function PublicCatalogue() {
 
   const shopsWithDistance = useMemo(
     () =>
-      masterShops.map((item) => {
+      participatingShops.map((item) => {
         const hasCoordinates =
           typeof item.latitude === "number" &&
           typeof item.longitude === "number";
@@ -148,7 +163,7 @@ export function PublicCatalogue() {
             : null;
         return { shop: item, distance };
       }),
-    [userLocation],
+    [participatingShops, userLocation],
   );
 
   const nearbyShops = useMemo(
@@ -312,7 +327,9 @@ export function PublicCatalogue() {
 
   const resultDescription = userLocation
     ? `${nearbyShops.length} shop${nearbyShops.length === 1 ? "" : "s"} within ${radiusKm} km`
-    : `${masterShops.length} participating location${masterShops.length === 1 ? "" : "s"}`;
+    : participatingShops.length
+      ? `${participatingShops.length} participating location${participatingShops.length === 1 ? "" : "s"}`
+      : "No participating locations yet";
 
   return (
     <>

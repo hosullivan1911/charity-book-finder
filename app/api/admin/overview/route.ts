@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import {
   auditEvents,
   books,
@@ -29,7 +29,7 @@ export async function GET() {
   const shopFilter =
     session.user.role === "admin"
       ? undefined
-      : eq(shops.id, session.shop.id);
+      : eq(shops.id, session.shop!.id);
   const userRows = await session.db
     .select({
       id: staffUsers.id,
@@ -43,7 +43,7 @@ export async function GET() {
       shopName: shops.name,
     })
     .from(staffUsers)
-    .innerJoin(shops, eq(staffUsers.shopId, shops.id))
+    .leftJoin(shops, eq(staffUsers.shopId, shops.id))
     .where(shopFilter)
     .orderBy(desc(staffUsers.createdAt));
 
@@ -93,13 +93,18 @@ export async function GET() {
   const auditFilter =
     session.user.role === "admin"
       ? undefined
-      : eq(auditEvents.shopId, session.shop.id);
+      : eq(auditEvents.shopId, session.shop!.id);
   const activityRows = await session.db
     .select()
     .from(auditEvents)
     .where(auditFilter)
     .orderBy(desc(auditEvents.createdAt))
     .limit(200);
+  const shopRows = await session.db
+    .select()
+    .from(shops)
+    .where(shopFilter)
+    .orderBy(asc(shops.name));
 
   const activeInventory = inventoryRows.filter(
     (item) => item.status === "available",
@@ -116,14 +121,15 @@ export async function GET() {
       id: session.user.id,
       username: session.user.username,
       role: session.user.role,
-      shopId: session.shop.id,
+      shopId: session.shop?.id ?? null,
     },
     stats: {
       activeInventory,
       activeUsers,
       scansLastSevenDays,
-      participatingShops: new Set(userRows.map((item) => item.shopId)).size,
+      participatingShops: shopRows.filter((shop) => shop.active).length,
     },
+    shops: shopRows,
     users: userRows,
     invites: inviteRows,
     inventory: inventoryRows,

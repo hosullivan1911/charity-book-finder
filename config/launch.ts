@@ -14,3 +14,9 @@ export const OWNER_SETUP_CODE_SHA256 =
  */
 export const LAUNCH_DATA_RESET_KEY = "launch-reset-2026-07-24-v1";
 
+/**
+ * The owner requested a clean production shop directory before onboarding the
+ * first real pilot. This second guarded reset runs once, preserves any platform
+ * owner account, and removes every prototype shop and its dependent data.
+ */
+export const SHOP_DATA_RESET_KEY = "shop-reset-2026-07-25-v1";

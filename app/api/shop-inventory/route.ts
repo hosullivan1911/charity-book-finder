@@ -49,9 +49,10 @@ async function getAuthenticatedStaff() {
   if (process.env.SITE_MODE === "catalogue") return null;
 
   const cookieStore = await cookies();
-  return getStaffSession(
+  const session = await getStaffSession(
     cookieStore.get(SHOP_SESSION_COOKIE)?.value,
   );
+  return session?.shop ? session : null;
 }
 
 export async function GET() {

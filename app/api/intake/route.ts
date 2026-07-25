@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const session = await getStaffSession(
       cookieStore.get(SHOP_SESSION_COOKIE)?.value,
     );
-    if (!session) {
+    if (!session?.shop) {
       return Response.json(
         { error: "Sign in to an approved shop before scanning books." },
         { status: 401 },

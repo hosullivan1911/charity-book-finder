@@ -135,14 +135,17 @@ npm run db:studio    # inspect the connected database
 
 ## Edit participating shops
 
-The master list is deliberately isolated in [`config/shops.ts`](config/shops.ts).
-Edit that one file in GitHub to add, remove or rename shops, then commit the
-change. Each shop also needs `latitude` and `longitude` so distance filtering
-works. Vercel will redeploy the change automatically. Keep every `id` and
-`slug` unique; the stock API synchronises the configured shops into Neon. On
-the first request, Giveleaf also creates its small trial schema automatically,
-so a newly connected Neon database is ready for the first real scan without
-loading sample inventory.
+The Giveleaf owner manages the live shop directory from **Dashboard → Shops**.
+Enter a shop name, full Australian address, postcode and opening hours. The
+server verifies and geocodes the address so the location immediately works in
+customer distance searches. Shops can be edited, archived or reactivated from
+the same screen. An archived shop disappears from public search, its open
+invitations close and its staff are signed out.
+
+Shops are database-backed rather than committed in source control, so dashboard
+changes take effect immediately without a GitHub commit or Vercel redeploy.
+Giveleaf still self-initialises its small schema on the first request to a newly
+connected Neon database.
 
 ## Architecture
 
