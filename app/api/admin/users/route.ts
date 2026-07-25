@@ -1,7 +1,5 @@
 import { eq } from "drizzle-orm";
-import { masterShops } from "../../../../config/shops";
 import { shopInvites, staffSessions, staffUsers } from "../../../../db/schema";
-import { syncMasterShops } from "../../../../db/sync-master-shops";
 import { recordAuditEvent } from "../../../../lib/audit";
 import { getManagementSession } from "../../../../lib/management";
 import {
@@ -9,6 +7,7 @@ import {
   hashPassword,
   validatePassword,
 } from "../../../../lib/shop-auth";
+import { findShopBySlug } from "../../../../lib/shops";
 
 type UserPayload = {
   userId?: number;
@@ -33,7 +32,11 @@ export async function PATCH(request: Request) {
     .limit(1);
   if (
     !target ||
-    !canManageShop(session.user.role, session.shop.id, target.shopId) ||
+    !canManageShop(
+      session.user.role,
+      session.shop?.id ?? null,
+      target.shopId,
+    ) ||
     (session.user.role === "manager" && target.role !== "staff")
   ) {
     return Response.json({ error: "Staff account not found." }, { status: 404 });
@@ -112,25 +115,24 @@ export async function PATCH(request: Request) {
         { status: 403 },
       );
     }
-    const configuredShop = masterShops.find(
-      (shop) => shop.slug === payload.shopSlug,
-    );
     const role =
       payload.role === "admin" || payload.role === "manager"
         ? payload.role
         : "staff";
-    if (!configuredShop) {
+    const shop =
+      role === "admin"
+        ? null
+        : await findShopBySlug(
+            session.db,
+            payload.shopSlug?.trim() ?? "",
+          );
+    if (role !== "admin" && !shop) {
       return Response.json({ error: "Choose a valid shop." }, { status: 400 });
-    }
-    const syncedShops = await syncMasterShops(session.db);
-    const shop = syncedShops.find((item) => item.slug === configuredShop.slug);
-    if (!shop) {
-      return Response.json({ error: "Shop not found." }, { status: 404 });
     }
     await session.db
       .update(staffUsers)
       .set({
-        shopId: shop.id,
+        shopId: shop?.id ?? null,
         role,
         updatedAt: new Date().toISOString(),
       })
@@ -140,13 +142,14 @@ export async function PATCH(request: Request) {
       .where(eq(staffSessions.userId, target.id));
     await recordAuditEvent(session.db, {
       actor: session.user,
-      shopId: shop.id,
+      shopId: shop?.id ?? null,
       action: "staff.updated",
       targetType: "staff_user",
       targetId: target.id,
       details: {
         username: target.username,
         previousShopId: target.shopId,
+        shopId: shop?.id ?? null,
         role,
       },
     });

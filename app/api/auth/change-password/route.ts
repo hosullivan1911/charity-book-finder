@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   }
   await recordAuditEvent(session.db, {
     actor: session.user,
-    shopId: session.shop.id,
+    shopId: session.shop?.id ?? null,
     action: "staff.password_changed",
     targetType: "staff_user",
     targetId: session.user.id,
@@ -90,4 +90,3 @@ export async function POST(request: Request) {
   });
   return response;
 }
-

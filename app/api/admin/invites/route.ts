@@ -1,11 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { masterShops } from "../../../../config/shops";
 import { shopInvites } from "../../../../db/schema";
-import { syncMasterShops } from "../../../../db/sync-master-shops";
 import { recordAuditEvent } from "../../../../lib/audit";
 import { getManagementSession } from "../../../../lib/management";
 import { hashOpaqueToken } from "../../../../lib/shop-auth";
+import { findShopBySlug } from "../../../../lib/shops";
 
 type InvitePayload = {
   shopSlug?: string;
@@ -21,10 +20,11 @@ export async function POST(request: Request) {
   }
 
   const payload = (await request.json()) as InvitePayload;
-  const configuredShop = masterShops.find(
-    (shop) => shop.slug === payload.shopSlug,
+  const shop = await findShopBySlug(
+    session.db,
+    payload.shopSlug?.trim() ?? "",
   );
-  if (!configuredShop) {
+  if (!shop) {
     return Response.json({ error: "Choose a valid shop." }, { status: 400 });
   }
   const role =
@@ -36,11 +36,9 @@ export async function POST(request: Request) {
     Math.max(1, Number(payload.expiresInDays) || 7),
   );
   const maxUses = Math.min(25, Math.max(1, Number(payload.maxUses) || 1));
-  const syncedShops = await syncMasterShops(session.db);
-  const shop = syncedShops.find((item) => item.slug === configuredShop.slug);
   if (
-    !shop ||
-    (session.user.role !== "admin" && shop.id !== session.shop.id)
+    session.user.role !== "admin" &&
+    (!session.shop || shop.id !== session.shop.id)
   ) {
     return Response.json(
       { error: "You cannot create invitations for that shop." },
@@ -77,7 +75,7 @@ export async function POST(request: Request) {
       invite: {
         id: invite.id,
         code,
-        shopName: configuredShop.name,
+        shopName: shop.name,
         role,
         expiresAt,
         maxUses,
@@ -101,7 +99,8 @@ export async function DELETE(request: Request) {
     .limit(1);
   if (
     !invite ||
-    (session.user.role !== "admin" && invite.shopId !== session.shop.id)
+    (session.user.role !== "admin" &&
+      (!session.shop || invite.shopId !== session.shop.id))
   ) {
     return Response.json({ error: "Invitation not found." }, { status: 404 });
   }
@@ -119,4 +118,3 @@ export async function DELETE(request: Request) {
   });
   return Response.json({ revoked: true });
 }
-

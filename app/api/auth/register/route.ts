@@ -1,9 +1,7 @@
 import { and, eq, gt, lt } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { masterShops } from "../../../../config/shops";
 import { getDb } from "../../../../db";
 import { shopInvites, staffUsers } from "../../../../db/schema";
-import { syncMasterShops } from "../../../../db/sync-master-shops";
 import { recordAuditEvent } from "../../../../lib/audit";
 import {
   authRateLimitKey,
@@ -21,6 +19,7 @@ import {
   validatePassword,
   validateUsername,
 } from "../../../../lib/shop-auth";
+import { findShopBySlug, mapShop } from "../../../../lib/shops";
 
 type RegistrationPayload = {
   username?: string;
@@ -47,17 +46,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const configuredShop = masterShops.find(
-    (shop) => shop.slug === payload.shopSlug,
-  );
-  if (!configuredShop) {
+  const db = await getDb();
+  const shop = await findShopBySlug(db, payload.shopSlug?.trim() ?? "");
+  if (!shop) {
     return NextResponse.json(
       { error: "Choose a participating shop." },
       { status: 400 },
     );
   }
-
-  const db = await getDb();
   const rateLimitKey = authRateLimitKey(request, "register", username);
   const blockedMinutes = await checkAuthRateLimit(db, rateLimitKey);
   if (blockedMinutes) {
@@ -99,9 +95,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const syncedShops = await syncMasterShops(db);
-  const shop = syncedShops.find((item) => item.slug === configuredShop.slug);
-  if (!shop || shop.id !== invite.shopId) {
+  if (shop.id !== invite.shopId) {
     await recordAuthFailure(db, rateLimitKey);
     return NextResponse.json(
       { error: "That invitation belongs to a different shop." },
@@ -151,7 +145,7 @@ export async function POST(request: Request) {
       authenticated: true,
       username: user.username,
       role: user.role,
-      shop: configuredShop,
+      shop: mapShop(shop),
     },
     { status: 201 },
   );

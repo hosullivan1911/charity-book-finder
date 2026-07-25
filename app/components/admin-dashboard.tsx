@@ -2,16 +2,23 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { masterShops } from "../../config/shops";
+import type { Shop } from "../../lib/types";
 
-type AdminTab = "overview" | "staff" | "invites" | "inventory" | "activity";
+type AdminTab =
+  | "overview"
+  | "shops"
+  | "staff"
+  | "invites"
+  | "inventory"
+  | "activity"
+  | "account";
 
 type OverviewData = {
   viewer: {
     id: number;
     username: string;
     role: string;
-    shopId: number;
+    shopId: number | null;
   };
   stats: {
     activeInventory: number;
@@ -25,9 +32,9 @@ type OverviewData = {
     role: string;
     active: boolean;
     createdAt: string;
-    shopId: number;
-    shopSlug: string;
-    shopName: string;
+    shopId: number | null;
+    shopSlug: string | null;
+    shopName: string | null;
   }>;
   invites: Array<{
     id: number;
@@ -64,6 +71,12 @@ type OverviewData = {
     details: Record<string, unknown>;
     createdAt: string;
   }>;
+  shops: Array<
+    Shop & {
+      active: boolean;
+      createdAt: string;
+    }
+  >;
 };
 
 type CreatedInvite = {
@@ -93,11 +106,17 @@ export function AdminDashboard() {
   const [notice, setNotice] = useState("");
   const [inventoryQuery, setInventoryQuery] = useState("");
   const [showRemoved, setShowRemoved] = useState(false);
-  const [inviteShop, setInviteShop] = useState(masterShops[0]?.slug ?? "");
+  const [inviteShop, setInviteShop] = useState("");
   const [inviteRole, setInviteRole] = useState("staff");
   const [inviteUses, setInviteUses] = useState(1);
   const [inviteDays, setInviteDays] = useState(7);
   const [createdInvite, setCreatedInvite] = useState<CreatedInvite | null>(null);
+  const [shopName, setShopName] = useState("");
+  const [shopAddress, setShopAddress] = useState("");
+  const [shopPostcode, setShopPostcode] = useState("");
+  const [shopHours, setShopHours] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -109,9 +128,16 @@ export function AdminDashboard() {
         throw new Error(body.error || "Could not load management data.");
       }
       setData(body);
+      const activeShops = body.shops.filter((shop) => shop.active);
       if (body.viewer.role !== "admin") {
         const viewer = body.users.find((user) => user.id === body.viewer.id);
-        if (viewer) setInviteShop(viewer.shopSlug);
+        if (viewer?.shopSlug) setInviteShop(viewer.shopSlug);
+      } else {
+        setInviteShop((current) =>
+          activeShops.some((shop) => shop.slug === current)
+            ? current
+            : activeShops[0]?.slug ?? "",
+        );
       }
     } catch (loadError) {
       setError(
@@ -178,6 +204,69 @@ export function AdminDashboard() {
     }
   }
 
+  async function createShop(event: FormEvent) {
+    event.preventDefault();
+    const result = await request("/api/admin/shops", "POST", {
+      name: shopName,
+      address: shopAddress,
+      postcode: shopPostcode,
+      openingHours: shopHours,
+    });
+    if (result) {
+      setShopName("");
+      setShopAddress("");
+      setShopPostcode("");
+      setShopHours("");
+      setNotice(
+        "Shop added. It is now available for manager invitations and public searches.",
+      );
+    }
+  }
+
+  async function editShop(shop: OverviewData["shops"][number]) {
+    const name = window.prompt("Shop name:", shop.name);
+    if (!name) return;
+    const address = window.prompt(
+      "Full street address, suburb and state:",
+      shop.address,
+    );
+    if (!address) return;
+    const postcode = window.prompt("Postcode:", shop.postcode);
+    if (!postcode) return;
+    const openingHours = window.prompt("Opening hours:", shop.openingHours);
+    if (!openingHours) return;
+    const result = await request("/api/admin/shops", "PATCH", {
+      shopId: shop.id,
+      name,
+      address,
+      postcode,
+      openingHours,
+    });
+    if (result) setNotice(`${name} was updated.`);
+  }
+
+  async function toggleShop(shop: OverviewData["shops"][number]) {
+    if (
+      shop.active &&
+      !window.confirm(
+        `Archive ${shop.name}? It will disappear from public search, its invitations will close and its staff will be signed out.`,
+      )
+    ) {
+      return;
+    }
+    const result = await request("/api/admin/shops", "PATCH", {
+      shopId: shop.id,
+      active: !shop.active,
+    });
+    if (result) {
+      setNotice(
+        shop.active
+          ? `${shop.name} was archived.`
+          : `${shop.name} is participating again.`,
+      );
+    }
+  }
+
   async function toggleUser(user: OverviewData["users"][number]) {
     await request("/api/admin/users", "PATCH", {
       action: "set-active",
@@ -199,6 +288,21 @@ export function AdminDashboard() {
     if (result) {
       setNotice(
         `${user.username}'s password was reset and all of their sessions were closed.`,
+      );
+    }
+  }
+
+  async function changePassword(event: FormEvent) {
+    event.preventDefault();
+    const result = await request("/api/auth/change-password", "POST", {
+      currentPassword,
+      newPassword,
+    });
+    if (result) {
+      setCurrentPassword("");
+      setNewPassword("");
+      setNotice(
+        "Your password was changed. Other signed-in devices were logged out.",
       );
     }
   }
@@ -326,10 +430,14 @@ export function AdminDashboard() {
           {(
             [
               ["overview", "Overview"],
+              ...(data?.viewer.role === "admin"
+                ? ([["shops", "Shops"]] as Array<[AdminTab, string]>)
+                : []),
               ["staff", "Staff"],
               ["invites", "Invitations"],
               ["inventory", "Inventory"],
               ["activity", "Activity"],
+              ["account", "Account"],
             ] as Array<[AdminTab, string]>
           ).map(([value, label]) => (
             <button
@@ -342,14 +450,20 @@ export function AdminDashboard() {
             </button>
           ))}
         </nav>
-        <Link href="/staff">← Return to scanner</Link>
+        {data?.viewer.shopId && <Link href="/staff">← Return to scanner</Link>}
       </aside>
 
       <section className="admin-content">
         <header className="admin-heading">
           <div>
             <p className="kicker">{data?.viewer.role} access</p>
-            <h2>{tab === "staff" ? "Staff accounts" : tab}</h2>
+            <h2>
+              {tab === "staff"
+                ? "Staff accounts"
+                : tab === "shops"
+                  ? "Participating shops"
+                  : tab}
+            </h2>
           </div>
           <button onClick={() => void load()} type="button">Refresh</button>
         </header>
@@ -363,7 +477,7 @@ export function AdminDashboard() {
               <article><strong>{data.stats.activeInventory}</strong><span>Books available</span></article>
               <article><strong>{data.stats.activeUsers}</strong><span>Active staff</span></article>
               <article><strong>{data.stats.scansLastSevenDays}</strong><span>Scans in 7 days</span></article>
-              <article><strong>{data.stats.participatingShops}</strong><span>Shops with staff</span></article>
+              <article><strong>{data.stats.participatingShops}</strong><span>Participating shops</span></article>
             </div>
             <div className="admin-callout">
               <div>
@@ -379,6 +493,115 @@ export function AdminDashboard() {
               </button>
             </div>
           </>
+        )}
+
+        {tab === "shops" && data?.viewer.role === "admin" && (
+          <div className="admin-grid">
+            <form className="admin-form-card" onSubmit={createShop}>
+              <p className="kicker">New participating location</p>
+              <h3>Add a charity shop</h3>
+              <p>
+                The address is verified automatically so customers can find
+                the shop by distance.
+              </p>
+              <label className="form-field">
+                <span>Shop name</span>
+                <input
+                  maxLength={100}
+                  onChange={(event) => setShopName(event.target.value)}
+                  placeholder="e.g. Good Sammy Cannington"
+                  required
+                  value={shopName}
+                />
+              </label>
+              <label className="form-field">
+                <span>Full street address</span>
+                <input
+                  maxLength={180}
+                  onChange={(event) => setShopAddress(event.target.value)}
+                  placeholder="Street, suburb and WA"
+                  required
+                  value={shopAddress}
+                />
+              </label>
+              <div className="form-pair">
+                <label className="form-field">
+                  <span>Postcode</span>
+                  <input
+                    inputMode="numeric"
+                    maxLength={4}
+                    onChange={(event) =>
+                      setShopPostcode(
+                        event.target.value.replace(/\D/g, "").slice(0, 4),
+                      )
+                    }
+                    pattern="[0-9]{4}"
+                    placeholder="6000"
+                    required
+                    value={shopPostcode}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Opening hours</span>
+                  <input
+                    maxLength={180}
+                    onChange={(event) => setShopHours(event.target.value)}
+                    placeholder="Mon–Sat · 9am–5pm"
+                    required
+                    value={shopHours}
+                  />
+                </label>
+              </div>
+              <button className="primary-action" disabled={saving} type="submit">
+                {saving ? "Checking address…" : "Add participating shop"}
+              </button>
+            </form>
+
+            <div className="shop-management-list">
+              {data.shops.length ? (
+                data.shops.map((shop) => (
+                  <article className="shop-management-card" key={shop.id}>
+                    <div>
+                      <span
+                        className={shop.active ? "status-live" : "status-off"}
+                      >
+                        {shop.active ? "Participating" : "Archived"}
+                      </span>
+                      <h3>{shop.name}</h3>
+                      <p>{shop.address} · {shop.postcode}</p>
+                      <small>{shop.openingHours}</small>
+                    </div>
+                    <div className="table-actions">
+                      <button
+                        disabled={saving}
+                        onClick={() => void editShop(shop)}
+                        type="button"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className={shop.active ? "danger-link" : ""}
+                        disabled={saving}
+                        onClick={() => void toggleShop(shop)}
+                        type="button"
+                      >
+                        {shop.active ? "Archive" : "Reactivate"}
+                      </button>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="invite-result-card">
+                  <p className="kicker">Clean start</p>
+                  <h3>No shops have been added.</h3>
+                  <p>
+                    Add the first real pilot location using the form. It will
+                    immediately become available for manager invitations.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {tab === "staff" && data && (
@@ -401,6 +624,7 @@ export function AdminDashboard() {
                       void updateUser(user, role, shopSlug)
                     }
                     onToggle={() => void toggleUser(user)}
+                    shops={data.shops.filter((shop) => shop.active)}
                     user={user}
                     viewerId={data.viewer.id}
                   />
@@ -419,15 +643,15 @@ export function AdminDashboard() {
                 <span>Shop</span>
                 <select
                   onChange={(event) => setInviteShop(event.target.value)}
+                  required
                   value={inviteShop}
                 >
-                  {masterShops
+                  {data.shops
                     .filter(
                       (shop) =>
-                        data.viewer.role === "admin" ||
-                        data.viewer.shopId ===
-                          data.users.find((user) => user.shopSlug === shop.slug)
-                            ?.shopId,
+                        shop.active &&
+                        (data.viewer.role === "admin" ||
+                          data.viewer.shopId === shop.id),
                     )
                     .map((shop) => (
                       <option key={shop.slug} value={shop.slug}>{shop.name}</option>
@@ -470,9 +694,16 @@ export function AdminDashboard() {
                   />
                 </label>
               </div>
-              <button className="primary-action" disabled={saving} type="submit">
+              <button
+                className="primary-action"
+                disabled={saving || !inviteShop}
+                type="submit"
+              >
                 {saving ? "Creating…" : "Create invitation"}
               </button>
+              {!inviteShop && (
+                <small>Add a participating shop before creating invitations.</small>
+              )}
             </form>
             <div className="invite-result-card">
               {createdInvite ? (
@@ -588,6 +819,41 @@ export function AdminDashboard() {
             ))}
           </div>
         )}
+
+        {tab === "account" && data && (
+          <form className="admin-form-card account-view" onSubmit={changePassword}>
+            <p className="kicker">Signed in as {data.viewer.username}</p>
+            <h3>Change your password</h3>
+            <p>
+              Use at least 10 characters. Changing it signs your account out on
+              every other device.
+            </p>
+            <label className="form-field">
+              <span>Current password</span>
+              <input
+                autoComplete="current-password"
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                required
+                type="password"
+                value={currentPassword}
+              />
+            </label>
+            <label className="form-field">
+              <span>New password</span>
+              <input
+                autoComplete="new-password"
+                minLength={10}
+                onChange={(event) => setNewPassword(event.target.value)}
+                required
+                type="password"
+                value={newPassword}
+              />
+            </label>
+            <button className="primary-action" disabled={saving} type="submit">
+              {saving ? "Changing password…" : "Change password"}
+            </button>
+          </form>
+        )}
       </section>
     </div>
   );
@@ -602,6 +868,7 @@ function UserRow({
   onToggle,
   onReset,
   onDelete,
+  shops,
 }: {
   user: OverviewData["users"][number];
   admin: boolean;
@@ -611,22 +878,33 @@ function UserRow({
   onToggle: () => void;
   onReset: () => void;
   onDelete: () => void;
+  shops: OverviewData["shops"];
 }) {
   const [role, setRole] = useState(user.role);
-  const [shopSlug, setShopSlug] = useState(user.shopSlug);
+  const [shopSlug, setShopSlug] = useState(user.shopSlug ?? "");
   return (
     <tr>
       <td><strong>{user.username}</strong><small>Created {formatDate(user.createdAt)}</small></td>
       <td>
-        {admin ? (
+        {user.id === viewerId || role === "admin" ? (
+          "Platform-wide"
+        ) : admin ? (
           <select onChange={(event) => setShopSlug(event.target.value)} value={shopSlug}>
-            {masterShops.map((shop) => <option key={shop.slug} value={shop.slug}>{shop.name}</option>)}
+            {shops.map((shop) => <option key={shop.slug} value={shop.slug}>{shop.name}</option>)}
           </select>
-        ) : user.shopName}
+        ) : user.shopName || "Unassigned"}
       </td>
       <td>
-        {admin ? (
-          <select onChange={(event) => setRole(event.target.value)} value={role}>
+        {admin && user.id !== viewerId ? (
+          <select
+            onChange={(event) => {
+              const nextRole = event.target.value;
+              setRole(nextRole);
+              if (nextRole === "admin") setShopSlug("");
+              else if (!shopSlug) setShopSlug(shops[0]?.slug ?? "");
+            }}
+            value={role}
+          >
             <option value="staff">Staff</option>
             <option value="manager">Manager</option>
             <option value="admin">Owner</option>
@@ -636,7 +914,7 @@ function UserRow({
       <td><span className={user.active ? "status-live" : "status-off"}>{user.active ? "Active" : "Disabled"}</span></td>
       <td className="table-actions">
         {user.id === viewerId ? (
-          <small>Manage your password in the scanner&apos;s Account section.</small>
+          <small>Manage your password from the Account section.</small>
         ) : (
           <>
             {admin && <button disabled={busy} onClick={() => onSave(role, shopSlug)} type="button">Save</button>}

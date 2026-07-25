@@ -30,7 +30,7 @@ export async function PATCH(request: Request) {
     !target ||
     !canManageShop(
       session.user.role,
-      session.shop.id,
+      session.shop?.id ?? null,
       target.inventory.shopId,
     )
   ) {

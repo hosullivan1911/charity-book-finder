@@ -11,6 +11,7 @@ export async function getManagementSession() {
   const session = await getStaffSession(
     cookieStore.get(SHOP_SESSION_COOKIE)?.value,
   );
-  return session && isManagementRole(session.user.role) ? session : null;
+  if (!session || !isManagementRole(session.user.role)) return null;
+  if (session.user.role === "manager" && !session.shop) return null;
+  return session;
 }
-

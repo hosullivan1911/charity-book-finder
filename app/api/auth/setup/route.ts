@@ -1,12 +1,8 @@
 import { count } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import {
-  OWNER_SETUP_CODE_SHA256,
-} from "../../../../config/launch";
-import { masterShops } from "../../../../config/shops";
+import { OWNER_SETUP_CODE_SHA256 } from "../../../../config/launch";
 import { getDb } from "../../../../db";
 import { staffUsers } from "../../../../db/schema";
-import { syncMasterShops } from "../../../../db/sync-master-shops";
 import { recordAuditEvent } from "../../../../lib/audit";
 import {
   authRateLimitKey,
@@ -29,7 +25,6 @@ type SetupPayload = {
   setupCode?: string;
   username?: string;
   password?: string;
-  shopSlug?: string;
 };
 
 export async function POST(request: Request) {
@@ -46,16 +41,6 @@ export async function POST(request: Request) {
   if (usernameError || passwordError) {
     return NextResponse.json(
       { error: usernameError || passwordError },
-      { status: 400 },
-    );
-  }
-
-  const configuredShop = masterShops.find(
-    (shop) => shop.slug === payload.shopSlug,
-  );
-  if (!configuredShop) {
-    return NextResponse.json(
-      { error: "Choose the shop your owner account belongs to." },
       { status: 400 },
     );
   }
@@ -85,28 +70,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const syncedShops = await syncMasterShops(db);
-  const shop = syncedShops.find((item) => item.slug === configuredShop.slug);
-  if (!shop) {
-    return NextResponse.json(
-      { error: "The selected shop could not be prepared." },
-      { status: 503 },
-    );
-  }
-
   const [user] = await db
     .insert(staffUsers)
     .values({
       username,
       passwordHash: await hashPassword(password),
-      shopId: shop.id,
+      shopId: null,
       role: "admin",
       active: true,
     })
     .returning();
   await recordAuditEvent(db, {
     actor: user,
-    shopId: shop.id,
+    shopId: null,
     action: "owner.bootstrapped",
     targetType: "staff_user",
     targetId: user.id,
@@ -119,7 +95,7 @@ export async function POST(request: Request) {
       authenticated: true,
       username: user.username,
       role: user.role,
-      shop: configuredShop,
+      shop: null,
     },
     { status: 201 },
   );

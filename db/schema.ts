@@ -34,7 +34,6 @@ export const staffUsers = pgTable(
     username: text("username").notNull().unique(),
     passwordHash: text("password_hash").notNull(),
     shopId: integer("shop_id")
-      .notNull()
       .references(() => shops.id),
     role: text("role").notNull().default("staff"),
     active: boolean("active").notNull().default(true),
