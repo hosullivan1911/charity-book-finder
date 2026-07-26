@@ -122,9 +122,17 @@ export async function getStaffSession(token?: string) {
         role: staffUsers.role,
         active: staffUsers.active,
       },
+      shop: shops,
     })
     .from(staffSessions)
     .innerJoin(staffUsers, eq(staffSessions.userId, staffUsers.id))
+    .leftJoin(
+      shops,
+      and(
+        eq(staffUsers.shopId, shops.id),
+        eq(shops.active, true),
+      ),
+    )
     .where(
       and(
         eq(staffSessions.tokenHash, hashOpaqueToken(token)),
@@ -135,18 +143,7 @@ export async function getStaffSession(token?: string) {
     .limit(1);
 
   if (!session) return null;
-  const [shop] = session.user.shopId
-    ? await db
-        .select()
-        .from(shops)
-        .where(
-          and(
-            eq(shops.id, session.user.shopId),
-            eq(shops.active, true),
-          ),
-        )
-        .limit(1)
-    : [];
+  const shop = session.shop;
   if (session.user.role !== "admin" && !shop) return null;
 
   return {

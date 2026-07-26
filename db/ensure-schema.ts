@@ -5,6 +5,27 @@ import {
 } from "../config/launch";
 import type { Database } from ".";
 
+export const DATABASE_SCHEMA_STATE_KEY = "schema-ready-2026-07-26-v1";
+
+/**
+ * Serverless instances are short-lived. Use a cheap persistent marker so each
+ * cold instance does not repeat every idempotent CREATE/ALTER/INDEX statement.
+ */
+export async function isDatabaseSchemaCurrent(db: Database) {
+  const tableResult = await db.execute<{ tableName: string | null }>(sql`
+    SELECT to_regclass('public.app_state')::text AS "tableName"
+  `);
+  if (!tableResult.rows[0]?.tableName) return false;
+
+  const markerResult = await db.execute<{ value: string }>(sql`
+    SELECT "value"
+    FROM "app_state"
+    WHERE "key" = ${DATABASE_SCHEMA_STATE_KEY}
+    LIMIT 1
+  `);
+  return markerResult.rows[0]?.value === "complete";
+}
+
 /**
  * Neon integrations provision a database, but they do not apply this
  * repository's Drizzle migrations automatically. Keep the small trial schema
@@ -251,4 +272,11 @@ export async function ensureDatabaseSchema(db: Database) {
     END
     $$;
   `));
+
+  await db.execute(sql`
+    INSERT INTO "app_state" ("key", "value", "updated_at")
+    VALUES (${DATABASE_SCHEMA_STATE_KEY}, 'complete', now())
+    ON CONFLICT ("key") DO UPDATE
+      SET "value" = EXCLUDED."value", "updated_at" = now()
+  `);
 }

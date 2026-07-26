@@ -151,6 +151,7 @@ connected Neon database.
 
 - Next.js, React and TypeScript
 - Vercel hosting and server functions
+- Sydney-region Vercel functions colocated with Neon
 - Neon Postgres via Drizzle ORM
 - Open Library ISBN metadata
 - Optional Google Books metadata fallback
@@ -164,6 +165,11 @@ connected Neon database.
 Database tables are defined in `db/schema.ts`; migrations live in `drizzle/`.
 The original pricing columns remain unused in the first database schema solely
 to avoid requiring an immediate production migration.
+
+Cold serverless instances check one persistent schema-version marker before
+serving data. The full idempotent schema setup runs only when that marker is
+missing, preserving automatic first-run setup without repeating DDL on every
+new function instance.
 
 ## Staff roles and pilot operations
 
