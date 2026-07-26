@@ -30,7 +30,7 @@ export async function GET() {
     session.user.role === "admin"
       ? undefined
       : eq(shops.id, session.shop!.id);
-  const userRows = await session.db
+  const userRowsQuery = session.db
     .select({
       id: staffUsers.id,
       username: staffUsers.username,
@@ -47,7 +47,7 @@ export async function GET() {
     .where(shopFilter)
     .orderBy(desc(staffUsers.createdAt));
 
-  const inviteRows = await session.db
+  const inviteRowsQuery = session.db
     .select({
       id: shopInvites.id,
       role: shopInvites.role,
@@ -66,7 +66,7 @@ export async function GET() {
     .orderBy(desc(shopInvites.createdAt))
     .limit(100);
 
-  const inventoryRows = await session.db
+  const inventoryRowsQuery = session.db
     .select({
       id: inventory.id,
       status: inventory.status,
@@ -94,17 +94,25 @@ export async function GET() {
     session.user.role === "admin"
       ? undefined
       : eq(auditEvents.shopId, session.shop!.id);
-  const activityRows = await session.db
+  const activityRowsQuery = session.db
     .select()
     .from(auditEvents)
     .where(auditFilter)
     .orderBy(desc(auditEvents.createdAt))
     .limit(200);
-  const shopRows = await session.db
+  const shopRowsQuery = session.db
     .select()
     .from(shops)
     .where(shopFilter)
     .orderBy(asc(shops.name));
+  const [userRows, inviteRows, inventoryRows, activityRows, shopRows] =
+    await Promise.all([
+      userRowsQuery,
+      inviteRowsQuery,
+      inventoryRowsQuery,
+      activityRowsQuery,
+      shopRowsQuery,
+    ]);
 
   const activeInventory = inventoryRows.filter(
     (item) => item.status === "available",

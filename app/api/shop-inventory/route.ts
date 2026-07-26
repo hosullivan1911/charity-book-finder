@@ -52,7 +52,11 @@ async function getAuthenticatedStaff() {
   const session = await getStaffSession(
     cookieStore.get(SHOP_SESSION_COOKIE)?.value,
   );
-  return session?.shop ? session : null;
+  if (!session?.shop) return null;
+  return {
+    ...session,
+    shop: session.shop,
+  };
 }
 
 export async function GET() {

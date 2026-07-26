@@ -111,26 +111,20 @@ export function PublicCatalogue() {
 
     async function refreshInventory() {
       try {
-        const [inventoryResponse, shopsResponse] = await Promise.all([
-          fetch("/api/inventory", {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
-          fetch("/api/shops", {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
-        ]);
-        const data = (await inventoryResponse.json()) as {
+        const response = await fetch("/api/catalogue", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = (await response.json()) as {
           inventory?: InventoryBook[];
+          shops?: Shop[];
         };
-        const shopData = (await shopsResponse.json()) as { shops?: Shop[] };
-        if (!inventoryResponse.ok || !shopsResponse.ok) {
+        if (!response.ok) {
           throw new Error("Live inventory is unavailable.");
         }
         if (Array.isArray(data.inventory)) setInventory(data.inventory);
-        if (Array.isArray(shopData.shops)) {
-          setParticipatingShops(shopData.shops);
+        if (Array.isArray(data.shops)) {
+          setParticipatingShops(data.shops);
         }
         setInventoryUnavailable(false);
       } catch {
