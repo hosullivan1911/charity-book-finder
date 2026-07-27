@@ -23,7 +23,13 @@ type OverviewData = {
   stats: {
     activeInventory: number;
     activeUsers: number;
-    scansLastSevenDays: number;
+    totalListings: number;
+    sales: number;
+    delistings: number;
+    listingsLastSevenDays: number;
+    lastListedAt: string | null;
+    lastSoldAt: string | null;
+    lastRemovedAt: string | null;
     participatingShops: number;
   };
   users: Array<{
@@ -54,6 +60,7 @@ type OverviewData = {
     scannedAt: string;
     removedBy: string | null;
     removalReason: string | null;
+    soldAt: string | null;
     removedAt: string | null;
     isbn13: string;
     title: string;
@@ -105,7 +112,9 @@ export function AdminDashboard() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [inventoryQuery, setInventoryQuery] = useState("");
-  const [showRemoved, setShowRemoved] = useState(false);
+  const [inventoryStatus, setInventoryStatus] = useState<
+    "all" | "available" | "sold" | "removed"
+  >("all");
   const [inviteShop, setInviteShop] = useState("");
   const [inviteRole, setInviteRole] = useState("staff");
   const [inviteUses, setInviteUses] = useState(1);
@@ -385,7 +394,19 @@ export function AdminDashboard() {
     const escape = (value: unknown) =>
       `"${String(value ?? "").replaceAll('"', '""')}"`;
     const rows = [
-      ["ISBN", "Title", "Author", "Shop", "Status", "Scanned by", "Scanned at"],
+      [
+        "ISBN",
+        "Title",
+        "Author",
+        "Shop",
+        "Status",
+        "Listed by",
+        "Listed at",
+        "Sold at",
+        "Removed at",
+        "Completed by",
+        "Removal reason",
+      ],
       ...data.inventory.map((item) => [
         item.isbn13,
         item.title,
@@ -394,6 +415,10 @@ export function AdminDashboard() {
         item.status,
         item.scannedBy,
         item.scannedAt,
+        item.soldAt,
+        item.removedAt,
+        item.removedBy,
+        item.removalReason,
       ]),
     ];
     const csv = rows.map((row) => row.map(escape).join(",")).join("\n");
@@ -411,13 +436,13 @@ export function AdminDashboard() {
     const needle = inventoryQuery.trim().toLowerCase();
     return data.inventory.filter(
       (item) =>
-        (showRemoved || item.status === "available") &&
+        (inventoryStatus === "all" || item.status === inventoryStatus) &&
         (!needle ||
           `${item.title} ${item.author} ${item.isbn13} ${item.shopName}`
             .toLowerCase()
             .includes(needle)),
     );
-  }, [data, inventoryQuery, showRemoved]);
+  }, [data, inventoryQuery, inventoryStatus]);
 
   if (loading) {
     return <div className="admin-loading">Preparing management tools…</div>;
@@ -482,10 +507,48 @@ export function AdminDashboard() {
         {tab === "overview" && data && (
           <>
             <div className="admin-stats">
-              <article><strong>{data.stats.activeInventory}</strong><span>Books available</span></article>
-              <article><strong>{data.stats.activeUsers}</strong><span>Active staff</span></article>
-              <article><strong>{data.stats.scansLastSevenDays}</strong><span>Scans in 7 days</span></article>
-              <article><strong>{data.stats.participatingShops}</strong><span>Participating shops</span></article>
+              <article>
+                <strong>{data.stats.activeInventory}</strong>
+                <span>Books available</span>
+                <small>Live inventory now</small>
+              </article>
+              <article>
+                <strong>{data.stats.totalListings}</strong>
+                <span>Total listings</span>
+                <small>
+                  {data.stats.lastListedAt
+                    ? `Latest ${formatDate(data.stats.lastListedAt)}`
+                    : "No listings yet"}
+                </small>
+              </article>
+              <article>
+                <strong>{data.stats.sales}</strong>
+                <span>Sales</span>
+                <small>
+                  {data.stats.lastSoldAt
+                    ? `Latest ${formatDate(data.stats.lastSoldAt)}`
+                    : "No sales recorded"}
+                </small>
+              </article>
+              <article>
+                <strong>{data.stats.delistings}</strong>
+                <span>Removed, not sold</span>
+                <small>
+                  {data.stats.lastRemovedAt
+                    ? `Latest ${formatDate(data.stats.lastRemovedAt)}`
+                    : "No removals recorded"}
+                </small>
+              </article>
+              <article>
+                <strong>{data.stats.activeUsers}</strong>
+                <span>Active staff</span>
+                <small>Can scan and update stock</small>
+              </article>
+              <article>
+                <strong>{data.stats.participatingShops}</strong>
+                <span>Participating shops</span>
+                <small>{data.stats.listingsLastSevenDays} listings in 7 days</small>
+              </article>
             </div>
             <div className="admin-callout">
               <div>
@@ -782,24 +845,75 @@ export function AdminDashboard() {
                 value={inventoryQuery}
               />
               <label>
-                <input
-                  checked={showRemoved}
-                  onChange={(event) => setShowRemoved(event.target.checked)}
-                  type="checkbox"
-                /> Show removed
+                Status
+                <select
+                  onChange={(event) =>
+                    setInventoryStatus(
+                      event.target.value as
+                        | "all"
+                        | "available"
+                        | "sold"
+                        | "removed",
+                    )
+                  }
+                  value={inventoryStatus}
+                >
+                  <option value="all">All lifecycle states</option>
+                  <option value="available">Available</option>
+                  <option value="sold">Sold</option>
+                  <option value="removed">Removed, not sold</option>
+                </select>
               </label>
               <button onClick={exportInventory} type="button">Export CSV</button>
             </div>
             <div className="admin-table-wrap">
               <table className="admin-table">
-                <thead><tr><th>Book</th><th>Shop</th><th>Status</th><th>Last action</th><th>Actions</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Book</th>
+                    <th>Shop</th>
+                    <th>Status</th>
+                    <th>Listed</th>
+                    <th>Outcome</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {visibleInventory.map((item) => (
                     <tr key={item.id}>
                       <td><strong>{item.title}</strong><small>{item.author} · {item.isbn13}</small></td>
                       <td>{item.shopName}</td>
-                      <td>{item.status}</td>
-                      <td>{item.status === "available" ? item.scannedBy : item.removedBy}<small>{formatDate(item.removedAt || item.scannedAt)}</small></td>
+                      <td>
+                        {item.status === "available"
+                          ? "Available"
+                          : item.status === "sold"
+                            ? "Sold"
+                            : "Removed, not sold"}
+                      </td>
+                      <td>
+                        {item.scannedBy || "Unknown"}
+                        <small>{formatDate(item.scannedAt)}</small>
+                      </td>
+                      <td>
+                        {item.status === "available" ? (
+                          "—"
+                        ) : (
+                          <>
+                            {item.removedBy || "Unknown"}
+                            <small>
+                              {item.status === "sold" && item.soldAt
+                                ? `Sold ${formatDate(item.soldAt)}`
+                                : item.removedAt
+                                  ? `Removed ${formatDate(item.removedAt)}`
+                                  : "Date unavailable"}
+                            </small>
+                            {item.status === "removed" &&
+                              item.removalReason && (
+                                <small>{item.removalReason}</small>
+                              )}
+                          </>
+                        )}
+                      </td>
                       <td className="table-actions">
                         <button onClick={() => void editInventory(item)} type="button">Edit</button>
                         <button onClick={() => void changeInventoryStatus(item)} type="button">
@@ -821,7 +935,12 @@ export function AdminDashboard() {
                 <span>{event.actorUsername || "System"}</span>
                 <div>
                   <strong>{readableAction(event.action)}</strong>
-                  <p>{event.targetType} · {formatDate(event.createdAt)}</p>
+                  <p>
+                    {typeof event.details.title === "string"
+                      ? `${event.details.title} · `
+                      : ""}
+                    {event.targetType} · {formatDate(event.createdAt)}
+                  </p>
                 </div>
               </article>
             ))}

@@ -5,7 +5,7 @@ import {
 } from "../config/launch";
 import type { Database } from ".";
 
-export const DATABASE_SCHEMA_STATE_KEY = "schema-ready-2026-07-26-v1";
+export const DATABASE_SCHEMA_STATE_KEY = "schema-ready-2026-07-27-v2";
 
 /**
  * Serverless instances are short-lived. Use a cheap persistent marker so each
@@ -168,6 +168,7 @@ export async function ensureDatabaseSchema(db: Database) {
       "scanned_by" text,
       "scanned_at" timestamp with time zone DEFAULT now() NOT NULL,
       "sold_at" timestamp with time zone,
+      "removed_at" timestamp with time zone,
       "removed_by" text,
       "removal_reason" text,
       "updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -176,9 +177,20 @@ export async function ensureDatabaseSchema(db: Database) {
 
   await db.execute(sql`
     ALTER TABLE "inventory"
+      ADD COLUMN IF NOT EXISTS "removed_at" timestamp with time zone,
       ADD COLUMN IF NOT EXISTS "removed_by" text,
       ADD COLUMN IF NOT EXISTS "removal_reason" text,
       ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  `);
+
+  // Before Sold and Remove were separate actions, every removal used sold_at.
+  // Preserve those historical dates as non-sale removals without inflating sales.
+  await db.execute(sql`
+    UPDATE "inventory"
+    SET
+      "removed_at" = COALESCE("removed_at", "sold_at", "updated_at"),
+      "sold_at" = NULL
+    WHERE "status" = 'removed' AND "sold_at" IS NOT NULL
   `);
 
   await db.execute(

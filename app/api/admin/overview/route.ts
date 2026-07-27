@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, count, desc, eq, max } from "drizzle-orm";
 import {
   auditEvents,
   books,
@@ -15,6 +15,13 @@ function safeDetails(value: string) {
   } catch {
     return {};
   }
+}
+
+function latestDate(values: Array<string | null>) {
+  return values.reduce<string | null>(
+    (latest, value) => (value && (!latest || value > latest) ? value : latest),
+    null,
+  );
 }
 
 export async function GET() {
@@ -74,7 +81,8 @@ export async function GET() {
       scannedAt: inventory.scannedAt,
       removedBy: inventory.removedBy,
       removalReason: inventory.removalReason,
-      removedAt: inventory.soldAt,
+      soldAt: inventory.soldAt,
+      removedAt: inventory.removedAt,
       isbn13: books.isbn13,
       title: books.title,
       author: books.author,
@@ -89,6 +97,18 @@ export async function GET() {
     .where(shopFilter)
     .orderBy(desc(inventory.updatedAt))
     .limit(1000);
+  const inventoryCountRowsQuery = session.db
+    .select({
+      status: inventory.status,
+      total: count(),
+      lastListedAt: max(inventory.scannedAt),
+      lastSoldAt: max(inventory.soldAt),
+      lastRemovedAt: max(inventory.removedAt),
+    })
+    .from(inventory)
+    .innerJoin(shops, eq(inventory.shopId, shops.id))
+    .where(shopFilter)
+    .groupBy(inventory.status);
 
   const auditFilter =
     session.user.role === "admin"
@@ -105,21 +125,36 @@ export async function GET() {
     .from(shops)
     .where(shopFilter)
     .orderBy(asc(shops.name));
-  const [userRows, inviteRows, inventoryRows, activityRows, shopRows] =
+  const [
+    userRows,
+    inviteRows,
+    inventoryRows,
+    inventoryCountRows,
+    activityRows,
+    shopRows,
+  ] =
     await Promise.all([
       userRowsQuery,
       inviteRowsQuery,
       inventoryRowsQuery,
+      inventoryCountRowsQuery,
       activityRowsQuery,
       shopRowsQuery,
     ]);
 
-  const activeInventory = inventoryRows.filter(
-    (item) => item.status === "available",
-  ).length;
+  const inventoryCounts = new Map(
+    inventoryCountRows.map((row) => [row.status, Number(row.total)]),
+  );
+  const activeInventory = inventoryCounts.get("available") ?? 0;
+  const sales = inventoryCounts.get("sold") ?? 0;
+  const delistings = inventoryCounts.get("removed") ?? 0;
+  const totalListings = [...inventoryCounts.values()].reduce(
+    (total, value) => total + value,
+    0,
+  );
   const activeUsers = userRows.filter((user) => user.active).length;
   const now = Date.now();
-  const scansLastSevenDays = inventoryRows.filter(
+  const listingsLastSevenDays = inventoryRows.filter(
     (item) =>
       new Date(item.scannedAt).getTime() >= now - 7 * 24 * 60 * 60 * 1000,
   ).length;
@@ -134,7 +169,19 @@ export async function GET() {
     stats: {
       activeInventory,
       activeUsers,
-      scansLastSevenDays,
+      totalListings,
+      sales,
+      delistings,
+      listingsLastSevenDays,
+      lastListedAt: latestDate(
+        inventoryCountRows.map((item) => item.lastListedAt),
+      ),
+      lastSoldAt: latestDate(
+        inventoryCountRows.map((item) => item.lastSoldAt),
+      ),
+      lastRemovedAt: latestDate(
+        inventoryCountRows.map((item) => item.lastRemovedAt),
+      ),
       participatingShops: shopRows.filter((shop) => shop.active).length,
     },
     shops: shopRows,

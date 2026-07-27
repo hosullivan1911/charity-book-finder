@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       await recordAuditEvent(db, {
         actor: user,
         shopId: shop.id,
-        action: "inventory.added",
+        action: "inventory.listed",
         targetType: "inventory",
         targetId: stock.id,
         details: {

@@ -74,14 +74,22 @@ export async function PATCH(request: Request) {
   }
 
   if (payload.action === "remove") {
+    if (target.inventory.status !== "available") {
+      return Response.json(
+        { error: "Only an available book can be removed." },
+        { status: 409 },
+      );
+    }
+    const removedAt = new Date().toISOString();
     await session.db
       .update(inventory)
       .set({
         status: "removed",
-        soldAt: new Date().toISOString(),
+        soldAt: null,
+        removedAt,
         removedBy: session.user.username,
         removalReason: payload.reason?.trim() || "Removed by manager",
-        updatedAt: new Date().toISOString(),
+        updatedAt: removedAt,
       })
       .where(eq(inventory.id, target.inventory.id));
     await recordAuditEvent(session.db, {
@@ -90,17 +98,29 @@ export async function PATCH(request: Request) {
       action: "inventory.removed",
       targetType: "inventory",
       targetId: target.inventory.id,
-      details: { isbn13: target.book.isbn13, source: "admin" },
+      details: {
+        isbn13: target.book.isbn13,
+        title: target.book.title,
+        source: "admin",
+      },
     });
     return Response.json({ updated: true });
   }
 
   if (payload.action === "restore") {
+    if (!["sold", "removed"].includes(target.inventory.status)) {
+      return Response.json(
+        { error: "Only a sold or removed book can be restored." },
+        { status: 409 },
+      );
+    }
+    const previousStatus = target.inventory.status;
     await session.db
       .update(inventory)
       .set({
         status: "available",
         soldAt: null,
+        removedAt: null,
         removedBy: null,
         removalReason: null,
         updatedAt: new Date().toISOString(),
@@ -112,7 +132,11 @@ export async function PATCH(request: Request) {
       action: "inventory.restored",
       targetType: "inventory",
       targetId: target.inventory.id,
-      details: { isbn13: target.book.isbn13 },
+      details: {
+        isbn13: target.book.isbn13,
+        title: target.book.title,
+        previousStatus,
+      },
     });
     return Response.json({ updated: true });
   }

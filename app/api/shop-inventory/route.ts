@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { books, inventory, shops } from "../../../db/schema";
 import {
@@ -17,6 +17,7 @@ type InventoryRow = {
 
 type RemovalPayload = {
   inventoryId?: number;
+  action?: "sold" | "remove";
   reason?: string;
 };
 
@@ -110,10 +111,16 @@ export async function DELETE(request: Request) {
     const payload = (await request.json()) as RemovalPayload;
     const inventoryId =
       typeof payload.inventoryId === "number" ? payload.inventoryId : null;
+    const action =
+      payload.action === "sold"
+        ? "sold"
+        : payload.action === "remove"
+          ? "removed"
+          : null;
 
-    if (!inventoryId) {
+    if (!inventoryId || !action) {
       return Response.json(
-        { error: "Choose a book from the inventory to remove." },
+        { error: "Choose a book and mark it as Sold or Remove." },
         { status: 400 },
       );
     }
@@ -142,31 +149,37 @@ export async function DELETE(request: Request) {
       );
     }
 
+    const completedAt = new Date().toISOString();
     await context.db
       .update(inventory)
       .set({
-        status: "removed",
-        soldAt: new Date().toISOString(),
+        status: action,
+        soldAt: action === "sold" ? completedAt : null,
+        removedAt: action === "removed" ? completedAt : null,
         removedBy: context.user.username,
-        removalReason: payload.reason?.trim() || "No longer available",
-        updatedAt: new Date().toISOString(),
+        removalReason:
+          action === "removed"
+            ? payload.reason?.trim() || "Removed from inventory"
+            : null,
+        updatedAt: completedAt,
       })
       .where(eq(inventory.id, stock.inventory.id));
     await recordAuditEvent(context.db, {
       actor: context.user,
       shopId: context.shop.id,
-      action: "inventory.removed",
+      action: action === "sold" ? "inventory.sold" : "inventory.removed",
       targetType: "inventory",
       targetId: stock.inventory.id,
       details: {
         isbn13: stock.book.isbn13,
         title: stock.book.title,
+        outcome: action,
         source: "scanner",
       },
     });
 
     return Response.json({
-      action: "removed",
+      action,
       inventoryId: stock.inventory.id,
     });
   } catch (error) {
@@ -201,7 +214,7 @@ export async function POST(request: Request) {
         and(
           eq(inventory.id, inventoryId),
           eq(inventory.shopId, context.shop.id),
-          eq(inventory.status, "removed"),
+          inArray(inventory.status, ["sold", "removed"]),
         ),
       )
       .limit(1);
@@ -212,11 +225,13 @@ export async function POST(request: Request) {
       );
     }
 
+    const previousStatus = stock.inventory.status;
     await context.db
       .update(inventory)
       .set({
         status: "available",
         soldAt: null,
+        removedAt: null,
         removedBy: null,
         removalReason: null,
         updatedAt: new Date().toISOString(),
@@ -228,7 +243,12 @@ export async function POST(request: Request) {
       action: "inventory.restored",
       targetType: "inventory",
       targetId: stock.inventory.id,
-      details: { isbn13: stock.book.isbn13, source: "scanner_undo" },
+      details: {
+        isbn13: stock.book.isbn13,
+        title: stock.book.title,
+        previousStatus,
+        source: "scanner_undo",
+      },
     });
     return Response.json({ action: "restored", inventoryId });
   } catch (error) {

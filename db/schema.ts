@@ -177,6 +177,10 @@ export const inventory = pgTable(
       .notNull()
       .defaultNow(),
     soldAt: timestamp("sold_at", { mode: "string", withTimezone: true }),
+    removedAt: timestamp("removed_at", {
+      mode: "string",
+      withTimezone: true,
+    }),
     removedBy: text("removed_by"),
     removalReason: text("removal_reason"),
     updatedAt: timestamp("updated_at", { mode: "string", withTimezone: true })

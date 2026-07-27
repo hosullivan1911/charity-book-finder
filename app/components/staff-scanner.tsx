@@ -22,6 +22,8 @@ type StockResult = {
   inventoryId: number;
 };
 
+type InventoryOutcome = "sold" | "removed";
+
 export function StaffScanner({
   shop,
   username,
@@ -45,8 +47,14 @@ export function StaffScanner({
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState("");
   const [inventoryQuery, setInventoryQuery] = useState("");
-  const [removingId, setRemovingId] = useState<number | null>(null);
-  const [lastRemoved, setLastRemoved] = useState<InventoryBook | null>(null);
+  const [removing, setRemoving] = useState<{
+    inventoryId: number;
+    action: "sold" | "remove";
+  } | null>(null);
+  const [lastRemoved, setLastRemoved] = useState<{
+    book: InventoryBook;
+    outcome: InventoryOutcome;
+  } | null>(null);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [accountMessage, setAccountMessage] = useState("");
@@ -262,22 +270,30 @@ export function StaffScanner({
     });
   }
 
-  async function removeInventoryItem(inventoryId: number) {
-    setRemovingId(inventoryId);
+  async function removeInventoryItem(
+    inventoryId: number,
+    action: "sold" | "remove",
+  ) {
+    setRemoving({ inventoryId, action });
     setInventoryError("");
     try {
       const response = await fetch("/api/shop-inventory", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inventoryId }),
+        body: JSON.stringify({ inventoryId, action }),
       });
-      const data = (await response.json()) as { error?: string };
+      const data = (await response.json()) as {
+        action?: InventoryOutcome;
+        error?: string;
+      };
       if (!response.ok) {
-        throw new Error(data.error || "Could not remove this book.");
+        throw new Error(data.error || "Could not update this book.");
       }
-      setLastRemoved(
-        inventory.find((book) => book.inventoryId === inventoryId) ?? null,
-      );
+      const book =
+        inventory.find((item) => item.inventoryId === inventoryId) ?? null;
+      if (book && data.action) {
+        setLastRemoved({ book, outcome: data.action });
+      }
       setInventory((current) =>
         current.filter((book) => book.inventoryId !== inventoryId),
       );
@@ -285,10 +301,10 @@ export function StaffScanner({
       setInventoryError(
         removeError instanceof Error
           ? removeError.message
-          : "Could not remove this book.",
+          : "Could not update this book.",
       );
     } finally {
-      setRemovingId(null);
+      setRemoving(null);
     }
   }
 
@@ -299,7 +315,7 @@ export function StaffScanner({
       const response = await fetch("/api/shop-inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inventoryId: lastRemoved.inventoryId }),
+        body: JSON.stringify({ inventoryId: lastRemoved.book.inventoryId }),
       });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -362,10 +378,10 @@ export function StaffScanner({
       <aside className="staff-aside">
         <div>
           <p className="kicker">Giveleaf for shops</p>
-          <h1>Scan in. Remove in one tap.</h1>
+          <h1>Scan in. Mark sold in one tap.</h1>
           <p>
-            Scan books into the live catalogue, then remove them directly from
-            inventory whenever they are no longer available.
+            Use Sold for a purchase so it counts as a sale. Use Remove for
+            transfers, damage or any other non-sale reason.
           </p>
         </div>
 
@@ -520,7 +536,12 @@ export function StaffScanner({
             )}
             {lastRemoved && (
               <div className="undo-banner" role="status">
-                <span>{lastRemoved.title} was removed.</span>
+                <span>
+                  {lastRemoved.book.title} was{" "}
+                  {lastRemoved.outcome === "sold"
+                    ? "marked as sold."
+                    : "removed without recording a sale."}
+                </span>
                 <button onClick={undoRemoval} type="button">Undo</button>
               </div>
             )}
@@ -546,17 +567,36 @@ export function StaffScanner({
                       <p>{book.author}</p>
                       <small>{book.isbn13}</small>
                     </div>
-                    <button
-                      className="remove-book-button"
-                      disabled={removingId === book.inventoryId}
-                      onClick={() => removeInventoryItem(book.inventoryId)}
-                      aria-label={`Remove ${book.title} from inventory`}
-                      type="button"
-                    >
-                      {removingId === book.inventoryId
-                        ? "Removing…"
-                        : "Remove"}
-                    </button>
+                    <div className="inventory-row-actions">
+                      <button
+                        className="sold-book-button"
+                        disabled={removing?.inventoryId === book.inventoryId}
+                        onClick={() =>
+                          removeInventoryItem(book.inventoryId, "sold")
+                        }
+                        aria-label={`Mark ${book.title} as sold`}
+                        type="button"
+                      >
+                        {removing?.inventoryId === book.inventoryId &&
+                        removing.action === "sold"
+                          ? "Saving…"
+                          : "Sold"}
+                      </button>
+                      <button
+                        className="remove-book-button"
+                        disabled={removing?.inventoryId === book.inventoryId}
+                        onClick={() =>
+                          removeInventoryItem(book.inventoryId, "remove")
+                        }
+                        aria-label={`Remove ${book.title} without recording a sale`}
+                        type="button"
+                      >
+                        {removing?.inventoryId === book.inventoryId &&
+                        removing.action === "remove"
+                          ? "Removing…"
+                          : "Remove"}
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>
