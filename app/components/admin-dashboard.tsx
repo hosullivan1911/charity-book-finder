@@ -375,6 +375,11 @@ export function AdminDashboard() {
     }
   }
 
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.assign("/staff");
+  }
+
   function exportInventory() {
     if (!data) return;
     const escape = (value: unknown) =>
@@ -465,7 +470,10 @@ export function AdminDashboard() {
                   : tab}
             </h2>
           </div>
-          <button onClick={() => void load()} type="button">Refresh</button>
+          <div className="table-actions">
+            <button onClick={() => void load()} type="button">Refresh</button>
+            <button onClick={() => void signOut()} type="button">Log out</button>
+          </div>
         </header>
 
         {error && <p className="form-error" role="alert">{error}</p>}
