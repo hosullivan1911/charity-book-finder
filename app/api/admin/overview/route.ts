@@ -9,6 +9,15 @@ import {
 } from "../../../../db/schema";
 import { getManagementSession } from "../../../../lib/management";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Expires: "0",
+  Pragma: "no-cache",
+};
+
 function safeDetails(value: string) {
   try {
     return JSON.parse(value) as Record<string, unknown>;
@@ -29,7 +38,7 @@ export async function GET() {
   if (!session) {
     return Response.json(
       { error: "A manager account is required." },
-      { status: 403 },
+      { headers: NO_STORE_HEADERS, status: 403 },
     );
   }
 
@@ -159,38 +168,41 @@ export async function GET() {
       new Date(item.scannedAt).getTime() >= now - 7 * 24 * 60 * 60 * 1000,
   ).length;
 
-  return Response.json({
-    viewer: {
-      id: session.user.id,
-      username: session.user.username,
-      role: session.user.role,
-      shopId: session.shop?.id ?? null,
+  return Response.json(
+    {
+      viewer: {
+        id: session.user.id,
+        username: session.user.username,
+        role: session.user.role,
+        shopId: session.shop?.id ?? null,
+      },
+      stats: {
+        activeInventory,
+        activeUsers,
+        totalListings,
+        sales,
+        delistings,
+        listingsLastSevenDays,
+        lastListedAt: latestDate(
+          inventoryCountRows.map((item) => item.lastListedAt),
+        ),
+        lastSoldAt: latestDate(
+          inventoryCountRows.map((item) => item.lastSoldAt),
+        ),
+        lastRemovedAt: latestDate(
+          inventoryCountRows.map((item) => item.lastRemovedAt),
+        ),
+        participatingShops: shopRows.filter((shop) => shop.active).length,
+      },
+      shops: shopRows,
+      users: userRows,
+      invites: inviteRows,
+      inventory: inventoryRows,
+      activity: activityRows.map((event) => ({
+        ...event,
+        details: safeDetails(event.details),
+      })),
     },
-    stats: {
-      activeInventory,
-      activeUsers,
-      totalListings,
-      sales,
-      delistings,
-      listingsLastSevenDays,
-      lastListedAt: latestDate(
-        inventoryCountRows.map((item) => item.lastListedAt),
-      ),
-      lastSoldAt: latestDate(
-        inventoryCountRows.map((item) => item.lastSoldAt),
-      ),
-      lastRemovedAt: latestDate(
-        inventoryCountRows.map((item) => item.lastRemovedAt),
-      ),
-      participatingShops: shopRows.filter((shop) => shop.active).length,
-    },
-    shops: shopRows,
-    users: userRows,
-    invites: inviteRows,
-    inventory: inventoryRows,
-    activity: activityRows.map((event) => ({
-      ...event,
-      details: safeDetails(event.details),
-    })),
-  });
+    { headers: NO_STORE_HEADERS },
+  );
 }

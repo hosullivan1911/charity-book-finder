@@ -127,11 +127,26 @@ export function AdminDashboard() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (manualRefresh = false) => {
     setError("");
+    if (manualRefresh) {
+      setRefreshing(true);
+      setNotice("");
+    }
     try {
-      const response = await fetch("/api/admin/overview", { cache: "no-store" });
+      const response = await fetch(
+        `/api/admin/overview?refresh=${Date.now()}`,
+        {
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: {
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        },
+      );
       const body = (await response.json()) as OverviewData & { error?: string };
       if (!response.ok) {
         throw new Error(body.error || "Could not load management data.");
@@ -148,6 +163,9 @@ export function AdminDashboard() {
             : activeShops[0]?.slug ?? "",
         );
       }
+      if (manualRefresh) {
+        setNotice(`Dashboard refreshed at ${formatDate(new Date().toISOString())}.`);
+      }
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -156,6 +174,7 @@ export function AdminDashboard() {
       );
     } finally {
       setLoading(false);
+      if (manualRefresh) setRefreshing(false);
     }
   }, []);
 
@@ -496,7 +515,14 @@ export function AdminDashboard() {
             </h2>
           </div>
           <div className="table-actions">
-            <button onClick={() => void load()} type="button">Refresh</button>
+            <button
+              aria-busy={refreshing}
+              disabled={refreshing}
+              onClick={() => void load(true)}
+              type="button"
+            >
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
             <button onClick={() => void signOut()} type="button">Log out</button>
           </div>
         </header>
