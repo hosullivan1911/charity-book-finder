@@ -1519,9 +1519,14 @@ footer p {
 }
 
 .sold-book-button {
-  background: var(--forest);
-  border-color: var(--forest);
+  background: var(--positive);
+  border-color: var(--positive);
   color: white;
+}
+
+.sold-book-button:hover {
+  background: #125437;
+  border-color: #125437;
 }
 
 .remove-book-button {
