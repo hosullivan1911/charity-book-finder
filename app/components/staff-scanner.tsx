@@ -194,7 +194,19 @@ export function StaffScanner({
         videoRef.current,
         (decoded, scanError, controls) => {
           controlsRef.current = controls;
-          if (!active || !decoded) return;
+          if (!active) return;
+          if (
+            scanError?.name &&
+            !["NotFoundException", "ChecksumException", "FormatException"].includes(
+              scanError.name,
+            )
+          ) {
+            setError(
+              "The camera stopped reading the barcode. Close it and try again, or enter the ISBN.",
+            );
+          }
+          if (!decoded) return;
+
           const value = decoded.getText().replace(/\D/g, "");
           if (value.length === 13 && /^(978|979)/.test(value)) {
             setIsbn(value);
@@ -206,16 +218,6 @@ export function StaffScanner({
           if (value.length === 13) {
             setError(
               "That barcode is not a book ISBN. Centre the barcode beginning 978 or 979.",
-            );
-          }
-          if (
-            scanError?.name &&
-            !["NotFoundException", "ChecksumException", "FormatException"].includes(
-              scanError.name,
-            )
-          ) {
-            setError(
-              "The camera stopped reading the barcode. Close it and try again, or enter the ISBN.",
             );
           }
         },
