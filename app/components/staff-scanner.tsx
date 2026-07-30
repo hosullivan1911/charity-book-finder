@@ -1,7 +1,10 @@
 "use client";
 
 import type { IScannerControls } from "@zxing/browser";
-import { BrowserMultiFormatReader } from "@zxing/browser";
+import {
+  BarcodeFormat,
+  BrowserMultiFormatOneDReader,
+} from "@zxing/browser";
 import {
   FormEvent,
   useCallback,
@@ -172,7 +175,11 @@ export function StaffScanner({
   useEffect(() => {
     if (!scanning || !videoRef.current) return;
     let active = true;
-    const reader = new BrowserMultiFormatReader();
+    const reader = new BrowserMultiFormatOneDReader(undefined, {
+      delayBetweenScanAttempts: 100,
+      delayBetweenScanSuccess: 500,
+    });
+    reader.possibleFormats = [BarcodeFormat.EAN_13];
 
     reader
       .decodeFromConstraints(
@@ -189,15 +196,26 @@ export function StaffScanner({
           controlsRef.current = controls;
           if (!active || !decoded) return;
           const value = decoded.getText().replace(/\D/g, "");
-          if (value.length === 13) {
+          if (value.length === 13 && /^(978|979)/.test(value)) {
             setIsbn(value);
             setScanning(false);
             controls.stop();
             void processStock(value);
+            return;
           }
-          if (scanError?.name && scanError.name !== "NotFoundException") {
+          if (value.length === 13) {
             setError(
-              "The camera could not read that barcode. Try the number instead.",
+              "That barcode is not a book ISBN. Centre the barcode beginning 978 or 979.",
+            );
+          }
+          if (
+            scanError?.name &&
+            !["NotFoundException", "ChecksumException", "FormatException"].includes(
+              scanError.name,
+            )
+          ) {
+            setError(
+              "The camera stopped reading the barcode. Close it and try again, or enter the ISBN.",
             );
           }
         },
@@ -209,7 +227,11 @@ export function StaffScanner({
         setError(
           errorName === "NotAllowedError"
             ? "Camera permission was declined. Allow camera access in your browser settings, then try again."
-            : "Camera access is unavailable. Enter the ISBN printed above the barcode.",
+            : errorName === "NotReadableError"
+              ? "The camera is already in use by another app or browser tab. Close it there, then try again."
+              : errorName === "NotFoundError"
+                ? "No camera was found on this device. Enter the ISBN printed above the barcode."
+                : "Camera access is unavailable. Enter the ISBN printed above the barcode.",
         );
       });
 
@@ -767,7 +789,7 @@ export function StaffScanner({
               </button>
             </div>
             <div className="video-wrap">
-              <video ref={videoRef} muted playsInline />
+              <video ref={videoRef} autoPlay muted playsInline />
               <div className="scan-frame"><span /></div>
             </div>
             <p>
