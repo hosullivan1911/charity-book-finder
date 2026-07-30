@@ -9,7 +9,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "npm run lint && npm run build",
+    "test": "npm run test:unit && npm run lint && npm run build",
+    "test:unit": "node --test lib/isbn-validation.test.ts",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern dist --ignore-pattern .vinext --ignore-pattern .sites-runtime --ignore-pattern .wrangler",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -18,6 +19,7 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
     "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "drizzle-orm": "0.45.2",
     "next": "16.2.11",
     "react": "19.2.6",

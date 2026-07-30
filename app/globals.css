@@ -1243,6 +1243,38 @@ footer p {
   max-width: 145px;
 }
 
+.photo-scan-button {
+  align-items: center;
+  background: #f7f3eb;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  min-height: 54px;
+  padding: 13px 16px;
+}
+
+.photo-scan-button span {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.photo-scan-button small {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.35;
+  margin-left: 20px;
+  max-width: 190px;
+  text-align: right;
+}
+
+.photo-scan-button.disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
 .form-divider {
   align-items: center;
   color: var(--muted);
@@ -1627,11 +1659,11 @@ footer p {
 
 .scan-frame {
   border: 2px solid var(--accent);
-  height: 38%;
-  left: 12%;
+  height: 34%;
+  left: 5%;
   position: absolute;
-  top: 31%;
-  width: 76%;
+  top: 33%;
+  width: 90%;
 }
 
 .scan-frame span {
@@ -1642,6 +1674,61 @@ footer p {
   position: absolute;
   top: 15%;
   width: 90%;
+}
+
+.scan-frame b {
+  background: var(--accent);
+  bottom: -1px;
+  color: var(--ink);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+  font-weight: 700;
+  left: 50%;
+  letter-spacing: 0.08em;
+  padding: 4px 7px;
+  position: absolute;
+  text-transform: uppercase;
+  transform: translate(-50%, 50%);
+  white-space: nowrap;
+}
+
+.scanner-status {
+  align-items: center;
+  background: #ece8de;
+  color: var(--ink);
+  display: flex;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  gap: 8px;
+  line-height: 1.45;
+  margin-top: 12px;
+  min-height: 38px;
+  padding: 9px 11px;
+}
+
+.scanner-status i {
+  background: var(--accent);
+  border-radius: 50%;
+  flex: 0 0 auto;
+  height: 8px;
+  width: 8px;
+}
+
+.scanner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.scanner-actions button {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  padding: 8px 10px;
 }
 
 .scanner-panel > p {
@@ -1899,6 +1986,18 @@ footer p {
     margin: 10px 0 0 72px;
     max-width: none;
     width: 100%;
+  }
+
+  .photo-scan-button {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .photo-scan-button small {
+    margin-left: 0;
+    max-width: none;
+    text-align: left;
   }
 
   .form-row {
