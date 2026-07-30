@@ -3,7 +3,7 @@
 import type { IScannerControls } from "@zxing/browser";
 import {
   BarcodeFormat,
-  BrowserMultiFormatOneDReader,
+  BrowserMultiFormatReader,
 } from "@zxing/browser";
 import {
   FormEvent,
@@ -26,6 +26,18 @@ type StockResult = {
 };
 
 type InventoryOutcome = "sold" | "removed";
+
+type DetectedBarcode = {
+  rawValue: string;
+};
+
+type NativeBarcodeDetector = {
+  detect(source: HTMLVideoElement): Promise<DetectedBarcode[]>;
+};
+
+type NativeBarcodeDetectorConstructor = new (options: {
+  formats: string[];
+}) => NativeBarcodeDetector;
 
 export function StaffScanner({
   shop,
@@ -175,11 +187,38 @@ export function StaffScanner({
   useEffect(() => {
     if (!scanning || !videoRef.current) return;
     let active = true;
-    const reader = new BrowserMultiFormatOneDReader(undefined, {
-      delayBetweenScanAttempts: 100,
+    let nativeScanTimer: ReturnType<typeof setInterval> | null = null;
+    let nativeScanBusy = false;
+    let accepted = false;
+
+    // BrowserMultiFormatReader refreshes its underlying decoder when
+    // possibleFormats changes. BrowserMultiFormatOneDReader does not, which
+    // left the previous EAN-13 configuration unapplied.
+    const reader = new BrowserMultiFormatReader(undefined, {
+      delayBetweenScanAttempts: 80,
       delayBetweenScanSuccess: 500,
     });
     reader.possibleFormats = [BarcodeFormat.EAN_13];
+
+    const acceptBarcode = (rawValue: string, controls?: IScannerControls) => {
+      if (!active || accepted) return false;
+      const value = rawValue.replace(/\D/g, "");
+      if (value.length !== 13) return false;
+      if (!/^(978|979)/.test(value)) {
+        setError(
+          "That barcode is not a book ISBN. Centre the barcode beginning 978 or 979.",
+        );
+        return false;
+      }
+
+      accepted = true;
+      setIsbn(value);
+      setScanning(false);
+      controls?.stop();
+      controlsRef.current?.stop();
+      void processStock(value);
+      return true;
+    };
 
     reader
       .decodeFromConstraints(
@@ -187,8 +226,8 @@ export function StaffScanner({
           audio: false,
           video: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
         },
         videoRef.current,
@@ -205,23 +244,53 @@ export function StaffScanner({
               "The camera stopped reading the barcode. Close it and try again, or enter the ISBN.",
             );
           }
-          if (!decoded) return;
-
-          const value = decoded.getText().replace(/\D/g, "");
-          if (value.length === 13 && /^(978|979)/.test(value)) {
-            setIsbn(value);
-            setScanning(false);
-            controls.stop();
-            void processStock(value);
-            return;
-          }
-          if (value.length === 13) {
-            setError(
-              "That barcode is not a book ISBN. Centre the barcode beginning 978 or 979.",
-            );
-          }
+          if (decoded) acceptBarcode(decoded.getText(), controls);
         },
       )
+      .then((controls) => {
+        controlsRef.current = controls;
+        if (!active || !videoRef.current) return;
+
+        // Chrome and Samsung Internet on modern Android devices can use the
+        // platform barcode detector. Run it alongside ZXing so either decoder
+        // can accept the first valid ISBN.
+        const Detector = (
+          window as typeof window & {
+            BarcodeDetector?: NativeBarcodeDetectorConstructor;
+          }
+        ).BarcodeDetector;
+        if (!Detector) return;
+
+        try {
+          const detector = new Detector({ formats: ["ean_13"] });
+          nativeScanTimer = setInterval(async () => {
+            const video = videoRef.current;
+            if (
+              !active ||
+              accepted ||
+              nativeScanBusy ||
+              !video ||
+              video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+            ) {
+              return;
+            }
+
+            nativeScanBusy = true;
+            try {
+              const detected = await detector.detect(video);
+              for (const barcode of detected) {
+                if (acceptBarcode(barcode.rawValue, controls)) break;
+              }
+            } catch {
+              // ZXing remains active when the native detector rejects a frame.
+            } finally {
+              nativeScanBusy = false;
+            }
+          }, 150);
+        } catch {
+          // Some browsers expose BarcodeDetector without EAN-13 support.
+        }
+      })
       .catch((cameraError: unknown) => {
         setScanning(false);
         const errorName =
@@ -239,6 +308,7 @@ export function StaffScanner({
 
     return () => {
       active = false;
+      if (nativeScanTimer) clearInterval(nativeScanTimer);
       controlsRef.current?.stop();
       controlsRef.current = null;
     };
