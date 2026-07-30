@@ -1,7 +1,7 @@
 import { and, eq, gt, lt } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "../../../../db";
-import { shopInvites, staffUsers } from "../../../../db/schema";
+import { shopInvites, shops, staffUsers } from "../../../../db/schema";
 import { recordAuditEvent } from "../../../../lib/audit";
 import {
   authRateLimitKey,
@@ -19,12 +19,11 @@ import {
   validatePassword,
   validateUsername,
 } from "../../../../lib/shop-auth";
-import { findShopBySlug, mapShop } from "../../../../lib/shops";
+import { mapShop } from "../../../../lib/shops";
 
 type RegistrationPayload = {
   username?: string;
   password?: string;
-  shopSlug?: string;
   inviteCode?: string;
 };
 
@@ -47,13 +46,6 @@ export async function POST(request: Request) {
   }
 
   const db = await getDb();
-  const shop = await findShopBySlug(db, payload.shopSlug?.trim() ?? "");
-  if (!shop) {
-    return NextResponse.json(
-      { error: "Choose a participating shop." },
-      { status: 400 },
-    );
-  }
   const rateLimitKey = authRateLimitKey(request, "register", username);
   const blockedMinutes = await checkAuthRateLimit(db, rateLimitKey);
   if (blockedMinutes) {
@@ -83,6 +75,19 @@ export async function POST(request: Request) {
     );
   }
 
+  const [shop] = await db
+    .select()
+    .from(shops)
+    .where(and(eq(shops.id, invite.shopId), eq(shops.active, true)))
+    .limit(1);
+  if (!shop) {
+    await recordAuthFailure(db, rateLimitKey);
+    return NextResponse.json(
+      { error: "The shop for that invitation is no longer available." },
+      { status: 403 },
+    );
+  }
+
   const [existingUser] = await db
     .select({ id: staffUsers.id })
     .from(staffUsers)
@@ -92,14 +97,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "That username is already in use." },
       { status: 409 },
-    );
-  }
-
-  if (shop.id !== invite.shopId) {
-    await recordAuthFailure(db, rateLimitKey);
-    return NextResponse.json(
-      { error: "That invitation belongs to a different shop." },
-      { status: 403 },
     );
   }
 

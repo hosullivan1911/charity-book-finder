@@ -25,7 +25,7 @@ export function normaliseUsername(value: string) {
 export function validateUsername(value: string) {
   const username = normaliseUsername(value);
   if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username)) {
-    return "Use 3–32 letters, numbers, dots, hyphens or underscores.";
+    return "Username must be 3–32 letters, numbers, dots, hyphens or underscores. Do not use an email address.";
   }
   return null;
 }
