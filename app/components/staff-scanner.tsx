@@ -5,7 +5,9 @@ import {
   BarcodeFormat,
   BrowserMultiFormatReader,
 } from "@zxing/browser";
+import { DecodeHintType } from "@zxing/library";
 import {
+  ChangeEvent,
   FormEvent,
   useCallback,
   useEffect,
@@ -15,6 +17,7 @@ import {
 } from "react";
 import Link from "next/link";
 import type { BookMetadata, InventoryBook, Shop } from "../../lib/types";
+import { isbnFromDetectedBarcode } from "../../lib/isbn-validation";
 import { BookIcon, ScanIcon, SearchIcon, ShopIcon } from "./icons";
 
 type StockMode = "add" | "inventory" | "account";
@@ -32,12 +35,216 @@ type DetectedBarcode = {
 };
 
 type NativeBarcodeDetector = {
-  detect(source: HTMLVideoElement): Promise<DetectedBarcode[]>;
+  detect(source: CanvasImageSource): Promise<DetectedBarcode[]>;
 };
 
-type NativeBarcodeDetectorConstructor = new (options: {
-  formats: string[];
-}) => NativeBarcodeDetector;
+type NativeBarcodeDetectorConstructor = {
+  new (options: { formats: string[] }): NativeBarcodeDetector;
+  getSupportedFormats?: () => Promise<string[]>;
+};
+
+type ExtendedMediaTrackCapabilities = MediaTrackCapabilities & {
+  focusMode?: string[];
+  torch?: boolean;
+  zoom?: {
+    max: number;
+    min: number;
+    step: number;
+  };
+};
+
+type ExtendedMediaTrackConstraintSet = MediaTrackConstraintSet & {
+  focusMode?: string;
+  torch?: boolean;
+  zoom?: number;
+};
+
+const SCANNER_ENGINE = "giveleaf-isbn-v3";
+
+function createIsbnReader() {
+  const hints = new Map<DecodeHintType, unknown>();
+  hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13]);
+  hints.set(DecodeHintType.TRY_HARDER, true);
+
+  return new BrowserMultiFormatReader(
+    hints,
+    {
+      delayBetweenScanAttempts: 120,
+      delayBetweenScanSuccess: 500,
+    },
+  );
+}
+
+function nativeBarcodeDetector() {
+  return (
+    window as typeof window & {
+      BarcodeDetector?: NativeBarcodeDetectorConstructor;
+    }
+  ).BarcodeDetector;
+}
+
+async function supportsNativeEan13(
+  Detector: NativeBarcodeDetectorConstructor,
+) {
+  if (!Detector.getSupportedFormats) return true;
+  try {
+    return (await Detector.getSupportedFormats()).includes("ean_13");
+  } catch {
+    return false;
+  }
+}
+
+async function optimiseCameraTrack(track: MediaStreamTrack) {
+  if (!track.getCapabilities || !track.applyConstraints) {
+    return { torchAvailable: false, zoomed: false };
+  }
+
+  const capabilities =
+    track.getCapabilities() as ExtendedMediaTrackCapabilities;
+  let zoomed = false;
+
+  if (capabilities.focusMode?.includes("continuous")) {
+    await track
+      .applyConstraints({
+        advanced: [
+          {
+            focusMode: "continuous",
+          } as ExtendedMediaTrackConstraintSet,
+        ],
+      })
+      .catch(() => undefined);
+  }
+
+  if (capabilities.zoom && capabilities.zoom.max > capabilities.zoom.min) {
+    const preferredZoom = Math.min(
+      capabilities.zoom.max,
+      Math.max(capabilities.zoom.min, 2),
+    );
+    if (preferredZoom > capabilities.zoom.min) {
+      await track
+        .applyConstraints({
+          advanced: [
+            {
+              zoom: preferredZoom,
+            } as ExtendedMediaTrackConstraintSet,
+          ],
+        })
+        .then(() => {
+          zoomed = true;
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  return {
+    torchAvailable: Boolean(capabilities.torch),
+    zoomed,
+  };
+}
+
+async function imageSourceForFile(file: File) {
+  if ("createImageBitmap" in window) {
+    try {
+      const bitmap = await createImageBitmap(file, {
+        imageOrientation: "from-image",
+      });
+      return {
+        source: bitmap as CanvasImageSource,
+        width: bitmap.width,
+        height: bitmap.height,
+        dispose: () => bitmap.close(),
+      };
+    } catch {
+      // Fall through to an image element on older mobile implementations.
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+  image.decoding = "async";
+  image.src = objectUrl;
+  try {
+    await image.decode();
+  } catch {
+    URL.revokeObjectURL(objectUrl);
+    throw new Error("The selected image could not be opened.");
+  }
+  return {
+    source: image as CanvasImageSource,
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+    dispose: () => URL.revokeObjectURL(objectUrl),
+  };
+}
+
+async function decodeIsbnPhoto(file: File) {
+  const image = await imageSourceForFile(file);
+  try {
+    const Detector = nativeBarcodeDetector();
+    if (Detector && (await supportsNativeEan13(Detector))) {
+      try {
+        const detector = new Detector({ formats: ["ean_13"] });
+        const detected = await detector.detect(image.source);
+        for (const barcode of detected) {
+          if (isbnFromDetectedBarcode(barcode.rawValue)) {
+            return barcode.rawValue;
+          }
+        }
+      } catch {
+        // The ZXing photo path below remains available on unsupported devices.
+      }
+    }
+
+    const reader = createIsbnReader();
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+
+    const bands = [
+      { top: 0, height: image.height },
+      { top: 0, height: Math.round(image.height * 0.58) },
+      {
+        top: Math.round(image.height * 0.21),
+        height: Math.round(image.height * 0.58),
+      },
+      {
+        top: Math.round(image.height * 0.42),
+        height: Math.round(image.height * 0.58),
+      },
+    ];
+
+    for (const band of bands) {
+      const safeHeight = Math.min(band.height, image.height - band.top);
+      const scale = Math.min(1, 2200 / image.width);
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(safeHeight * scale));
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(
+        image.source,
+        0,
+        band.top,
+        image.width,
+        safeHeight,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
+
+      try {
+        const value = reader.decodeFromCanvas(canvas).getText();
+        if (isbnFromDetectedBarcode(value)) return value;
+      } catch {
+        // Try the next horizontal band before asking for a closer photo.
+      }
+    }
+  } finally {
+    image.dispose();
+  }
+
+  return null;
+}
 
 export function StaffScanner({
   shop,
@@ -52,6 +259,10 @@ export function StaffScanner({
   const [isbn, setIsbn] = useState("");
   const [scanning, setScanning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [photoScanning, setPhotoScanning] = useState(false);
+  const [scannerStatus, setScannerStatus] = useState("Starting rear camera…");
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
   const [error, setError] = useState("");
   const [manualEntry, setManualEntry] = useState(false);
   const [manualTitle, setManualTitle] = useState("");
@@ -77,6 +288,8 @@ export function StaffScanner({
   const [accountSaving, setAccountSaving] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
+  const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
+  const scanAcceptedRef = useRef(false);
 
   const refreshInventory = useCallback(async () => {
     setInventoryLoading(true);
@@ -184,41 +397,72 @@ export function StaffScanner({
     [refreshInventory],
   );
 
-  useEffect(() => {
-    if (!scanning || !videoRef.current) return;
-    let active = true;
-    let nativeScanTimer: ReturnType<typeof setInterval> | null = null;
-    let nativeScanBusy = false;
-    let accepted = false;
+  const acceptBarcode = useCallback(
+    (rawValue: string, controls?: IScannerControls) => {
+      if (scanAcceptedRef.current) return false;
+      const value = isbnFromDetectedBarcode(rawValue);
+      if (!value) return false;
 
-    // BrowserMultiFormatReader refreshes its underlying decoder when
-    // possibleFormats changes. BrowserMultiFormatOneDReader does not, which
-    // left the previous EAN-13 configuration unapplied.
-    const reader = new BrowserMultiFormatReader(undefined, {
-      delayBetweenScanAttempts: 80,
-      delayBetweenScanSuccess: 500,
-    });
-    reader.possibleFormats = [BarcodeFormat.EAN_13];
-
-    const acceptBarcode = (rawValue: string, controls?: IScannerControls) => {
-      if (!active || accepted) return false;
-      const value = rawValue.replace(/\D/g, "");
-      if (value.length !== 13) return false;
-      if (!/^(978|979)/.test(value)) {
-        setError(
-          "That barcode is not a book ISBN. Centre the barcode beginning 978 or 979.",
-        );
-        return false;
-      }
-
-      accepted = true;
+      scanAcceptedRef.current = true;
+      setScannerStatus(`ISBN ${value} read`);
       setIsbn(value);
       setScanning(false);
       controls?.stop();
       controlsRef.current?.stop();
       void processStock(value);
       return true;
-    };
+    },
+    [processStock],
+  );
+
+  async function scanBarcodePhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+
+    controlsRef.current?.stop();
+    setScanning(false);
+    setPhotoScanning(true);
+    setError("");
+    setResult(null);
+    scanAcceptedRef.current = false;
+
+    try {
+      const rawValue = await decodeIsbnPhoto(file);
+      if (!rawValue || !acceptBarcode(rawValue)) {
+        setError(
+          "That photo was not sharp enough to read. Retake it closer so the main 978 or 979 barcode fills the frame, or type the 13 digits.",
+        );
+      }
+    } catch {
+      setError(
+        "The photo could not be read. Retake it closer, or type the 13 digits printed above the barcode.",
+      );
+    } finally {
+      setPhotoScanning(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!scanning || !videoRef.current) return;
+    let active = true;
+    let nativeScanTimer: ReturnType<typeof setInterval> | null = null;
+    let guidanceTimer: ReturnType<typeof setTimeout> | null = null;
+    let nativeScanBusy = false;
+    let scannerControls: IScannerControls | null = null;
+    let cameraTrack: MediaStreamTrack | null = null;
+    const reader = createIsbnReader();
+
+    setScannerStatus("Starting rear camera…");
+    setTorchAvailable(false);
+    setTorchOn(false);
+    guidanceTimer = setTimeout(() => {
+      if (active && !scanAcceptedRef.current) {
+        setScannerStatus(
+          "Move closer—the main barcode should nearly fill the green box.",
+        );
+      }
+    }, 5500);
 
     reader
       .decodeFromConstraints(
@@ -228,10 +472,12 @@ export function StaffScanner({
             facingMode: { ideal: "environment" },
             width: { ideal: 1920 },
             height: { ideal: 1080 },
+            frameRate: { ideal: 30 },
           },
         },
         videoRef.current,
         (decoded, scanError, controls) => {
+          scannerControls = controls;
           controlsRef.current = controls;
           if (!active) return;
           if (
@@ -241,33 +487,46 @@ export function StaffScanner({
             )
           ) {
             setError(
-              "The camera stopped reading the barcode. Close it and try again, or enter the ISBN.",
+              "The camera stopped reading. Close it and try again, take a barcode photo, or type the ISBN.",
             );
           }
           if (decoded) acceptBarcode(decoded.getText(), controls);
         },
       )
-      .then((controls) => {
+      .then(async (controls) => {
+        scannerControls = controls;
         controlsRef.current = controls;
         if (!active || !videoRef.current) return;
 
-        // Chrome and Samsung Internet on modern Android devices can use the
-        // platform barcode detector. Run it alongside ZXing so either decoder
-        // can accept the first valid ISBN.
-        const Detector = (
-          window as typeof window & {
-            BarcodeDetector?: NativeBarcodeDetectorConstructor;
-          }
-        ).BarcodeDetector;
-        if (!Detector) return;
+        const stream = videoRef.current.srcObject as MediaStream | null;
+        cameraTrack = stream?.getVideoTracks()[0] ?? null;
+        if (cameraTrack) {
+          cameraTrackRef.current = cameraTrack;
+          const optimisation = await optimiseCameraTrack(cameraTrack);
+          if (!active) return;
+          setTorchAvailable(optimisation.torchAvailable);
+          setScannerStatus(
+            optimisation.zoomed
+              ? "Camera ready—automatic close-up is on. Fill the green box."
+              : "Camera ready. Fill the green box with the main 978 or 979 barcode.",
+          );
+        } else {
+          setScannerStatus(
+            "Camera ready. Fill the green box with the main 978 or 979 barcode.",
+          );
+        }
 
+        const Detector = nativeBarcodeDetector();
+        if (!Detector || !(await supportsNativeEan13(Detector)) || !active) {
+          return;
+        }
         try {
           const detector = new Detector({ formats: ["ean_13"] });
           nativeScanTimer = setInterval(async () => {
             const video = videoRef.current;
             if (
               !active ||
-              accepted ||
+              scanAcceptedRef.current ||
               nativeScanBusy ||
               !video ||
               video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
@@ -292,7 +551,9 @@ export function StaffScanner({
         }
       })
       .catch((cameraError: unknown) => {
+        if (!active) return;
         setScanning(false);
+        setScannerStatus("Camera unavailable");
         const errorName =
           cameraError instanceof DOMException ? cameraError.name : "";
         setError(
@@ -309,10 +570,14 @@ export function StaffScanner({
     return () => {
       active = false;
       if (nativeScanTimer) clearInterval(nativeScanTimer);
-      controlsRef.current?.stop();
-      controlsRef.current = null;
+      if (guidanceTimer) clearTimeout(guidanceTimer);
+      scannerControls?.stop();
+      if (controlsRef.current === scannerControls) controlsRef.current = null;
+      if (cameraTrackRef.current === cameraTrack) cameraTrackRef.current = null;
+      setTorchAvailable(false);
+      setTorchOn(false);
     };
-  }, [processStock, scanning]);
+  }, [acceptBarcode, scanning]);
 
   const filteredInventory = useMemo(() => {
     const needle = inventoryQuery.trim().toLowerCase();
@@ -335,6 +600,8 @@ export function StaffScanner({
   function startScanner() {
     setError("");
     setResult(null);
+    scanAcceptedRef.current = false;
+    setScannerStatus("Starting rear camera…");
     if (!window.isSecureContext) {
       setError(
         "The camera requires HTTPS. Open the Vercel URL, or enter the ISBN manually.",
@@ -348,6 +615,30 @@ export function StaffScanner({
       return;
     }
     setScanning(true);
+  }
+
+  async function toggleTorch() {
+    const track = cameraTrackRef.current;
+    if (!track) return;
+    const nextTorchState = !torchOn;
+    try {
+      await track.applyConstraints({
+        advanced: [
+          {
+            torch: nextTorchState,
+          } as ExtendedMediaTrackConstraintSet,
+        ],
+      });
+      setTorchOn(nextTorchState);
+      setScannerStatus(
+        nextTorchState
+          ? "Light on. Fill the green box with the main barcode."
+          : "Light off. Fill the green box with the main barcode.",
+      );
+    } catch {
+      setTorchAvailable(false);
+      setScannerStatus("This camera does not allow its light to be controlled.");
+    }
   }
 
   function submit(event: FormEvent) {
@@ -736,7 +1027,7 @@ export function StaffScanner({
           <form onSubmit={submit}>
             <button
               className="camera-button"
-              disabled={submitting}
+              disabled={submitting || photoScanning}
               type="button"
               onClick={startScanner}
             >
@@ -746,6 +1037,23 @@ export function StaffScanner({
                 The book and its cover are added as soon as the barcode is read
               </small>
             </button>
+
+            <label
+              className={`photo-scan-button${photoScanning ? " disabled" : ""}`}
+            >
+              <input
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                disabled={submitting || photoScanning}
+                onChange={scanBarcodePhoto}
+                type="file"
+              />
+              <span>
+                {photoScanning ? "Reading barcode photo…" : "Take a barcode photo"}
+              </span>
+              <small>Use this if live scanning does not read within a few seconds</small>
+            </label>
 
             <div className="form-divider"><span>or type the number</span></div>
 
@@ -842,6 +1150,7 @@ export function StaffScanner({
       {scanning && (
         <div
           className="scanner-overlay"
+          data-scanner-engine={SCANNER_ENGINE}
           role="dialog"
           aria-modal="true"
           aria-label="ISBN scanner"
@@ -850,7 +1159,7 @@ export function StaffScanner({
             <div className="scanner-top">
               <div>
                 <p className="kicker">Stock in</p>
-                <h2>Centre the ISBN barcode</h2>
+                <h2>Fill the frame with the main barcode</h2>
               </div>
               <button
                 type="button"
@@ -862,11 +1171,29 @@ export function StaffScanner({
             </div>
             <div className="video-wrap">
               <video ref={videoRef} autoPlay muted playsInline />
-              <div className="scan-frame"><span /></div>
+              <div className="scan-frame">
+                <span />
+                <b>978 / 979 ISBN</b>
+              </div>
+            </div>
+            <div className="scanner-status" role="status" aria-live="polite">
+              <i aria-hidden="true" />
+              {scannerStatus}
+            </div>
+            <div className="scanner-actions">
+              {torchAvailable && (
+                <button type="button" onClick={toggleTorch}>
+                  {torchOn ? "Turn light off" : "Turn light on"}
+                </button>
+              )}
+              <button type="button" onClick={() => setScanning(false)}>
+                Use barcode photo instead
+              </button>
             </div>
             <p>
-              Hold still about 15 cm from the back cover. The inventory updates
-              automatically when the barcode is read.
+              Move close enough for the long barcode beginning 978 or 979 to
+              nearly touch both sides of the green box. Ignore the smaller
+              five-digit price barcode beside it.
             </p>
           </div>
         </div>

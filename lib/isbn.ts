@@ -1,24 +1,13 @@
 import type { BookMetadata } from "./types";
 import { siteConfig } from "../config/site";
+import { isValidIsbn13, normaliseIsbn } from "./isbn-validation";
+
+export { isValidIsbn13, normaliseIsbn } from "./isbn-validation";
 
 const BOOK_LOOKUP_HEADERS = {
   Accept: "application/json",
   "User-Agent": `Giveleaf/1.0 (${siteConfig.supportEmail})`,
 };
-
-export function normaliseIsbn(value: string) {
-  return value.replace(/[^0-9X]/gi, "").toUpperCase();
-}
-
-export function isValidIsbn13(value: string) {
-  const isbn = normaliseIsbn(value);
-  if (!/^\d{13}$/.test(isbn)) return false;
-  const total = isbn
-    .slice(0, 12)
-    .split("")
-    .reduce((sum, digit, index) => sum + Number(digit) * (index % 2 ? 3 : 1), 0);
-  return (10 - (total % 10)) % 10 === Number(isbn[12]);
-}
 
 export function isbn10ForIsbn13(value: string) {
   const isbn13 = normaliseIsbn(value);
