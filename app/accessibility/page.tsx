@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { siteConfig } from "../../config/site";
 import { PolicyPage } from "../components/policy-page";
 
-export const metadata = { title: "Accessibility" };
+export const metadata: Metadata = {
+  title: "Accessibility",
+  alternates: {
+    canonical: "/accessibility",
+  },
+};
 
 export default function AccessibilityPage() {
   return (
