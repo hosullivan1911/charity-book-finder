@@ -6,7 +6,7 @@ export function SiteHeader({ staff = false }: { staff?: boolean }) {
 
   return (
     <header className="site-header">
-      <Link className="brand" href="/" aria-label="Giveleaf home">
+      <Link className="brand" href="/" aria-label="Giveleaf Books home">
         <span className="brand-mark" aria-hidden="true"><span /></span>
         <span>giveleaf</span>
       </Link>

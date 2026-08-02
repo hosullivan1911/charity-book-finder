@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { siteConfig } from "../../config/site";
 import { PolicyPage } from "../components/policy-page";
 
-export const metadata = { title: "Support" };
+export const metadata: Metadata = {
+  title: "Support",
+  alternates: {
+    canonical: "/support",
+  },
+};
 
 export default function SupportPage() {
   return (

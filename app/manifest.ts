@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Giveleaf",
+    name: "Giveleaf Books",
     short_name: "Giveleaf",
     description: "Find and manage books in participating charity shops.",
     start_url: "/",
